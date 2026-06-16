@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+
+- Fix: resolve correct package source directory when installing from pub.dev
+
 ## 1.0.2
 
 - Auto-detect Flutter project directory when run from inside the project
