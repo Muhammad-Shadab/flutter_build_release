@@ -1,6 +1,6 @@
 name: flutter_build_release
 description: CLI tool to build Flutter APK/IPA and upload to Google Drive (via rclone) or Diawi.
-version: 1.0.0
+version: 1.0.1
 repository: https://github.com/Muhammad-Shadab/flutter_build_release
 
 environment:

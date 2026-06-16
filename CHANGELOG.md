@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Remove sensitive example credentials from documentation
+
 ## 1.0.0
 
 - Initial release
