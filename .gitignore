@@ -1,0 +1,13 @@
+# Compiled binary
+flutter_build_release
+
+# Dart tool cache
+.dart_tool/
+
+# IDE
+.idea/
+.vscode/
+
+# Pub
+pubspec.lock
+.packages
