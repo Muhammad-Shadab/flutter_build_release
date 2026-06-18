@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.8
+
+### Changed
+
+- Updated README license section to include author name (MIT License © 2026 Muhammad Shadab)
+
+---
+
 ## 1.0.7
 
 ### Added
