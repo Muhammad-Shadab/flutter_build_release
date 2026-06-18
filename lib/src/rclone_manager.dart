@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
+
 import 'app_config.dart';
 import 'logger.dart';
 import 'process_utils.dart';
@@ -149,6 +151,8 @@ class RcloneManager {
     Logger.step('Saving credentials to rclone remote "$remoteName"...');
     _createRemoteWithToken(tokenJson);
     Logger.ok('Remote "$remoteName" configured.');
+    // Cache the account email now while the token is fresh.
+    await fetchAndCacheEmail();
   }
 
   // ── Remote helpers ─────────────────────────────────────────────────────────
@@ -206,6 +210,65 @@ class RcloneManager {
         'Remote migrated. Your Google Drive access is fully preserved.',
       );
     } catch (_) {}
+  }
+
+  // ── Account email ──────────────────────────────────────────────────────────
+
+  /// Cached email for the connected Google account (null = not yet fetched).
+  static String? get connectedEmail => AppConfig.driveEmail;
+
+  /// Deletes the rclone remote. Caller is responsible for clearing AppConfig.
+  static void deleteRemote() => _deleteRemoteConfig();
+
+  /// Extracts the OAuth token stored by rclone, calls Google's userinfo
+  /// endpoint to read the account email, and caches it in AppConfig.
+  ///
+  /// Calls `rclone about` first so rclone refreshes an expired access token
+  /// before we attempt to read it. Returns null on any failure.
+  static Future<String?> fetchAndCacheEmail() async {
+    if (!remoteExists()) return null;
+
+    final cached = AppConfig.driveEmail;
+    if (cached != null) return cached;
+
+    // Trigger token refresh through rclone before reading the stored token.
+    Process.runSync('rclone', ['about', '$remoteName:'], runInShell: true);
+
+    final tokenJson = _getStoredTokenJson();
+    if (tokenJson == null) return null;
+
+    try {
+      final token = jsonDecode(tokenJson) as Map<String, dynamic>;
+      final accessToken = token['access_token'] as String?;
+      if (accessToken == null) return null;
+
+      final res = await http.get(
+        Uri.parse('https://www.googleapis.com/oauth2/v2/userinfo'),
+        headers: {'Authorization': 'Bearer $accessToken'},
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final email = data['email'] as String?;
+      if (email != null) AppConfig.saveDriveEmail(email);
+      return email;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Reads the raw OAuth token JSON from `rclone config dump`.
+  static String? _getStoredTokenJson() {
+    final result =
+        Process.runSync('rclone', ['config', 'dump'], runInShell: true);
+    if (result.exitCode != 0) return null;
+    try {
+      final all = jsonDecode(result.stdout as String) as Map<String, dynamic>;
+      final remote = all[remoteName] as Map<String, dynamic>?;
+      return remote?['token'] as String?;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Returns true if the remote can reach Google Drive (token is valid).

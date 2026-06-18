@@ -210,6 +210,12 @@ class Wizard {
     // Only show startup screen if something is already configured.
     if (projectDir == null && folderName == null && !driveConnected) return;
 
+    // Fetch email lazily — cached after first successful call.
+    if (driveConnected && AppConfig.driveEmail == null) {
+      await RcloneManager.fetchAndCacheEmail();
+    }
+    final driveEmail = AppConfig.driveEmail;
+
     stdout.writeln('  ─── Current Configuration ──────────────────────────');
     stdout.writeln('');
 
@@ -222,7 +228,9 @@ class Wizard {
     _infoRow(
       'Drive Account',
       driveConnected
-          ? '\x1B[0;32mConnected\x1B[0m'
+          ? (driveEmail != null
+              ? '\x1B[0;32m$driveEmail\x1B[0m'
+              : '\x1B[0;32mConnected\x1B[0m')
           : '\x1B[1;33mNot set up\x1B[0m',
     );
 

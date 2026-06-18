@@ -11,7 +11,7 @@ class ConfigCommand {
     _printHeader();
 
     while (true) {
-      _printMenu();
+      await _printMenu();
       final choice = stdin.readLineSync()?.trim() ?? '';
       stdout.writeln('');
 
@@ -52,7 +52,7 @@ class ConfigCommand {
     stdout.writeln('');
   }
 
-  void _printMenu() {
+  Future<void> _printMenu() async {
     final cfg = AppConfig.load();
 
     final projectDir = cfg['projectDirectory'] as String?;
@@ -63,8 +63,16 @@ class ConfigCommand {
     final autoDiawi = cfg['autoUploadDiawi'];
     final driveConnected = RcloneManager.remoteExists();
 
+    // Fetch email lazily — cached after first successful call.
+    if (driveConnected && AppConfig.driveEmail == null) {
+      await RcloneManager.fetchAndCacheEmail();
+    }
+    final email = AppConfig.driveEmail;
+
     final driveStatus = driveConnected
-        ? '\x1B[0;32mConnected\x1B[0m'
+        ? (email != null
+            ? '\x1B[0;32m$email\x1B[0m'
+            : '\x1B[0;32mConnected\x1B[0m')
         : '\x1B[0;31mNot set up\x1B[0m';
     final diawiStatus =
         hasDiawi ? '\x1B[0;32mConfigured\x1B[0m' : '\x1B[1;33mNot set\x1B[0m';
@@ -191,25 +199,74 @@ class ConfigCommand {
     _section('Google Drive Account');
 
     if (RcloneManager.remoteExists()) {
-      stdout.writeln('  Google Drive is already connected.');
+      final email = AppConfig.driveEmail;
+      if (email != null) {
+        stdout.writeln('  Connected as: \x1B[0;32m$email\x1B[0m');
+      } else {
+        stdout.writeln('  Google Drive is connected.');
+      }
       stdout.writeln('');
-      stdout.writeln('  1)  Keep current connection');
-      stdout.writeln('  2)  Re-authenticate (opens browser)');
+      stdout.writeln('  1)  Keep current account');
+      stdout.writeln('  2)  Change Google account');
+      stdout.writeln('  3)  Disconnect Google account');
       stdout.writeln('');
-      stdout.write('  Choice [1/2]: ');
+      stdout.write('  Choice [1/2/3]: ');
       final choice = stdin.readLineSync()?.trim() ?? '1';
-      if (choice != '2') {
-        Logger.ok('Kept current Google Drive connection.');
-        return;
+      stdout.writeln('');
+
+      switch (choice) {
+        case '2':
+          await _changeGoogleAccount();
+          return;
+        case '3':
+          await _disconnectDrive();
+          return;
+        default:
+          Logger.ok('Kept current Google account.');
+          return;
       }
     }
 
-    stdout.writeln('');
+    // Not connected — go straight to fresh setup.
     stdout.writeln('  Your browser will open for Google sign-in.');
     stdout.writeln('  Sign in and click Allow — this resumes automatically.');
     stdout.writeln('');
     await RcloneManager.ensureRemoteAndAuthenticated();
-    Logger.ok('Google Drive re-authenticated.');
+    final email = AppConfig.driveEmail;
+    if (email != null) {
+      Logger.ok('Connected as: $email');
+    } else {
+      Logger.ok('Google Drive connected.');
+    }
+  }
+
+  Future<void> _changeGoogleAccount() async {
+    stdout.writeln('  Removing existing Google Drive connection...');
+    RcloneManager.deleteRemote();
+    AppConfig.clearDriveEmail();
+    Logger.ok('Previous account removed.');
+    stdout.writeln('');
+    stdout.writeln('  Your browser will open for Google sign-in.');
+    stdout.writeln('  Sign in with the new account and click Allow.');
+    stdout.writeln('');
+    await RcloneManager.ensureRemoteAndAuthenticated();
+    final email = AppConfig.driveEmail;
+    if (email != null) {
+      Logger.ok('Google account changed. Connected as: $email');
+    } else {
+      Logger.ok('Google account changed.');
+    }
+  }
+
+  Future<void> _disconnectDrive() async {
+    stdout.writeln('  Disconnecting Google Drive...');
+    RcloneManager.deleteRemote();
+    AppConfig.clearDriveEmail();
+    Logger.ok('Google Drive account removed.');
+    stdout.writeln('');
+    stdout.writeln(
+      '  Run flutter_release_manager init to connect a new account.',
+    );
   }
 
   // ── 4. Google Drive root folder ────────────────────────────────────────────

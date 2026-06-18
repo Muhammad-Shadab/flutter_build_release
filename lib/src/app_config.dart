@@ -100,10 +100,23 @@ class AppConfig {
     return v is bool ? v : null;
   }
 
+  static String? get driveEmail {
+    final v = load()['driveEmail'];
+    return v is String && v.isNotEmpty ? v : null;
+  }
+
   static bool get isConfigured => folderName != null;
   static bool get hasDiawiToken => diawiToken != null;
 
   // ── Setters ────────────────────────────────────────────────────────────────
+
+  static void saveDriveEmail(String email) => save({'driveEmail': email});
+
+  static void clearDriveEmail() {
+    final current = load();
+    current.remove('driveEmail');
+    _write(current);
+  }
 
   static void saveFolderName(String folder) =>
       save({'folderName': folder, 'remote': remoteName});

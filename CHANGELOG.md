@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.0.4
+
+### Fixed
+
+- **Google account change now works** — selecting "Change Google account" in
+  `config` previously reused the existing token because
+  `ensureRemoteAndAuthenticated` exited early when the token was valid; it now
+  deletes the rclone remote first so a completely fresh OAuth flow runs every
+  time
+
+### Added
+
+- **Account email displayed everywhere** — the connected Google account email
+  is shown in the startup configuration screen and in the `config` menu
+  (e.g. `shadab@gmail.com` instead of `Connected`); email is fetched via
+  Google's userinfo endpoint after OAuth and cached in machine config so
+  subsequent starts are instant
+- **Disconnect option** — `config → Google Account → Disconnect Google account`
+  runs `rclone config delete flutter_release_manager`, clears the cached email,
+  and prints a clean confirmation; subsequent `flutter_release_manager` runs
+  detect no account and prompt for first-time setup
+- **Three-option Google account menu** replaces the previous two-option menu:
+  `1) Keep current account  2) Change Google account  3) Disconnect Google account`
+
+---
+
 ## 1.0.3
 
 ### Changed
