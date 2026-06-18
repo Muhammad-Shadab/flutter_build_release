@@ -13,11 +13,8 @@ class ProjectDetector {
     for (final line in pubspec.readAsLinesSync()) {
       // Only match a top-level name: key — no leading whitespace in the raw line.
       if (line.startsWith('name:')) {
-        final raw = line
-            .substring(5)
-            .trim()
-            .replaceAll('"', '')
-            .replaceAll("'", '');
+        final raw =
+            line.substring(5).trim().replaceAll('"', '').replaceAll("'", '');
         return _toPascalCase(raw);
       }
     }

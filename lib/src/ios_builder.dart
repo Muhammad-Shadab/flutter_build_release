@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'config.dart';
 import 'diawi_uploader.dart';
 import 'logger.dart';
@@ -11,17 +12,22 @@ class IosBuilder {
 
   Future<String?> build() async {
     final now = DateTime.now();
-    final dateLabel =
-        '${now.year}-${_pad(now.month)}-${_pad(now.day)}_${_pad(now.hour)}-${_pad(now.minute)}';
+    final dateLabel = '${now.year}-${_pad(now.month)}-${_pad(now.day)}_'
+        '${_pad(now.hour)}-${_pad(now.minute)}';
 
     final iosDir = '${config.appDir}/ios';
-    final workspace = _findWorkspace(iosDir);
     final buildOutput = '${config.appDir}/build/release_output';
+
+    if (config.skipBuild) {
+      return _skipBuild(buildOutput);
+    }
+
+    final workspace = _findWorkspace(iosDir);
     final archivePath = '$buildOutput/${config.appName}_$dateLabel.xcarchive';
     final exportPath = '$buildOutput/${config.appName}_${dateLabel}_ipa';
     final exportPlist = '$buildOutput/ExportOptions.plist';
 
-    // Clean old artifacts
+    // Clean previous artifacts.
     final outputDir = Directory(buildOutput);
     if (outputDir.existsSync()) {
       Logger.header('Cleaning iOS build output');
@@ -51,23 +57,30 @@ class IosBuilder {
     }
 
     // 2. ExportOptions.plist
-    Logger.step('Writing ExportOptions.plist (method: ${config.exportMethod})');
+    Logger.step(
+      'Writing ExportOptions.plist (method: ${config.exportMethod})',
+    );
     File(exportPlist).writeAsStringSync(_exportPlist());
 
     // 3. Archive
     Logger.step('Archiving → $archivePath');
     code = await runLive('xcodebuild', [
       'archive',
-      '-workspace', workspace,
-      '-scheme', config.scheme,
-      '-configuration', 'Release',
-      '-archivePath', archivePath,
-      '-destination', 'generic/platform=iOS',
+      '-workspace',
+      workspace,
+      '-scheme',
+      config.scheme,
+      '-configuration',
+      'Release',
+      '-archivePath',
+      archivePath,
+      '-destination',
+      'generic/platform=iOS',
       'CODE_SIGN_STYLE=Automatic',
       'DEVELOPMENT_TEAM=${config.teamId}',
     ]);
     if (code != 0 || !Directory(archivePath).existsSync()) {
-      Logger.error('Archive failed');
+      Logger.error('Archive failed (exit $code)');
       exit(1);
     }
     Logger.ok('Archive created');
@@ -76,9 +89,12 @@ class IosBuilder {
     Logger.step('Exporting IPA → $exportPath');
     code = await runLive('xcodebuild', [
       '-exportArchive',
-      '-archivePath', archivePath,
-      '-exportPath', exportPath,
-      '-exportOptionsPlist', exportPlist,
+      '-archivePath',
+      archivePath,
+      '-exportPath',
+      exportPath,
+      '-exportOptionsPlist',
+      exportPlist,
     ]);
 
     final ipaFile = _findIpa(exportPath);
@@ -89,14 +105,47 @@ class IosBuilder {
     Logger.ok('IPA ready (${_fileSize(ipaFile)}) → ${ipaFile.path}');
 
     // 5. Upload to Diawi
-    String? diawiUrl;
     if (config.diawiToken != null) {
-      diawiUrl = await DiawiUploader(config).upload(ipaFile);
+      return DiawiUploader(config).upload(ipaFile);
     }
-    return diawiUrl;
+    return null;
   }
 
-  // Scans ios/ for *.xcworkspace; prefers Runner.xcworkspace, then first found.
+  // ── Skip-build (upload only) ──────────────────────────────────────────────
+
+  Future<String?> _skipBuild(String buildOutput) async {
+    Logger.header('iOS — skip build, uploading existing IPA');
+    final ipa = _findMostRecentIpa(buildOutput);
+    if (ipa == null) {
+      Logger.error(
+        'No existing IPA found in $buildOutput.\n'
+        '  Run without --skip-build first to produce an artifact.',
+      );
+      exit(1);
+    }
+    Logger.ok('Found existing IPA: ${ipa.path} (${_fileSize(ipa)})');
+    if (config.diawiToken != null) {
+      return DiawiUploader(config).upload(ipa);
+    }
+    return null;
+  }
+
+  File? _findMostRecentIpa(String buildOutput) {
+    final dir = Directory(buildOutput);
+    if (!dir.existsSync()) return null;
+    final ipas = dir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.ipa'))
+        .toList()
+      ..sort(
+        (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+      );
+    return ipas.isEmpty ? null : ipas.first;
+  }
+
+  // ── Workspace discovery ───────────────────────────────────────────────────
+
   String _findWorkspace(String iosDir) {
     try {
       final entries = Directory(iosDir)
@@ -125,6 +174,8 @@ class IosBuilder {
     }
   }
 
+  // ── ExportOptions.plist ───────────────────────────────────────────────────
+
   String _exportPlist() => '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -143,6 +194,8 @@ class IosBuilder {
   <string>&lt;thin-for-all-variants&gt;</string>
 </dict>
 </plist>''';
+
+  // ── Utilities ─────────────────────────────────────────────────────────────
 
   String _fileSize(File f) {
     final bytes = f.lengthSync();

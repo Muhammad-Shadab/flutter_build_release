@@ -18,5 +18,5 @@ class Logger {
   static void ok(String text) => stdout.writeln('  $_green✓$_reset  $text');
   static void skip(String text) => stdout.writeln('  $_yellow⚠$_reset  $text');
   static void error(String text) => stderr.writeln('  $_red✗$_reset  $text');
-  static void info(String text) => stdout.writeln('  $_boldℹ$_reset  $text');
+  static void info(String text) => stdout.writeln('  $_bold ℹ$_reset  $text');
 }

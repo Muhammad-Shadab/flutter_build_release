@@ -1,9 +1,15 @@
-# Compiled binary
+# Stale entrypoint from flutter_build_release (renamed to flutter_release_manager)
+bin/flutter_build_release.dart
+bin/flutter_build_release.exe
+
+# Removed in v3 (replaced by rclone-based upload)
+lib/src/drive_uploader.dart
+lib/src/credential_store.dart
+lib/src/drive_authenticator.dart
+
+# Compiled binaries — never publish
 flutter_build_release
+flutter_release_manager
 
-# IDE
-.idea/
-
-# Dart tool cache
-.dart_tool/
-pubspec.lock
+# Dev artifacts
+.DS_Store

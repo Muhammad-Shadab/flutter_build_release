@@ -1,11 +1,25 @@
 import 'dart:io';
 
-import 'package:flutter_build_release/src/android_builder.dart';
-import 'package:flutter_build_release/src/ios_builder.dart';
-import 'package:flutter_build_release/src/logger.dart';
-import 'package:flutter_build_release/src/wizard.dart';
+import 'package:flutter_release_manager/src/android_builder.dart';
+import 'package:flutter_release_manager/src/doctor_command.dart';
+import 'package:flutter_release_manager/src/init_command.dart';
+import 'package:flutter_release_manager/src/ios_builder.dart';
+import 'package:flutter_release_manager/src/logger.dart';
+import 'package:flutter_release_manager/src/wizard.dart';
 
 Future<void> main(List<String> args) async {
+  // Subcommand routing.
+  if (args.isNotEmpty && args.first == 'init') {
+    await InitCommand().run();
+    return;
+  }
+
+  if (args.isNotEmpty && args.first == 'doctor') {
+    await DoctorCommand().run();
+    return;
+  }
+
+  // Default: build + upload.
   final config = await Wizard().run(args);
 
   String? driveUrl;

@@ -9,11 +9,11 @@ RED='\033[0;31m'
 RESET='\033[0m'
 
 INSTALL_DIR="/usr/local/bin"
-BINARY_NAME="flutter_build_release"
+BINARY_NAME="flutter_release_manager"
 
 echo ""
 echo "╔══════════════════════════════════════════════╗"
-echo "  Installing flutter_build_release"
+echo "  Installing flutter_release_manager"
 echo "╚══════════════════════════════════════════════╝"
 echo ""
 
@@ -35,8 +35,8 @@ else
   # Running via curl | bash — activate from pub.dev then locate package
   echo ""
   echo -e "  ${CYAN}→${RESET}  Fetching package from pub.dev..."
-  dart pub global activate flutter_build_release
-  PACKAGE_DIR=$(find "$HOME/.pub-cache/hosted/pub.dev" -maxdepth 1 -name "flutter_build_release-*" | sort -V | tail -1)
+  dart pub global activate flutter_release_manager
+  PACKAGE_DIR=$(find "$HOME/.pub-cache/hosted/pub.dev" -maxdepth 1 -name "flutter_release_manager-*" | sort -V | tail -1)
 fi
 
 echo -e "  ${GREEN}✓${RESET}  Package ready"
@@ -47,7 +47,7 @@ echo -e "  ${CYAN}→${RESET}  Compiling binary (this takes ~10 seconds)..."
 
 TEMP_BIN="$(mktemp)"
 cd "$PACKAGE_DIR"
-dart compile exe bin/flutter_build_release.dart -o "$TEMP_BIN"
+dart compile exe bin/flutter_release_manager.dart -o "$TEMP_BIN"
 
 echo -e "  ${GREEN}✓${RESET}  Compiled successfully"
 
@@ -62,13 +62,12 @@ echo -e "  ${GREEN}✓${RESET}  Installed to $INSTALL_DIR/$BINARY_NAME"
 
 # ── 5. Verify ─────────────────────────────────────────────────────────────────
 echo ""
-if command -v flutter_build_release &>/dev/null; then
-  echo -e "  ${GREEN}${BOLD}✓ Done! flutter_build_release is ready.${RESET}"
+if command -v flutter_release_manager &>/dev/null; then
+  echo -e "  ${GREEN}${BOLD}✓ Done! flutter_release_manager is ready.${RESET}"
   echo ""
-  echo -e "  ${BOLD}Run:${RESET} flutter_build_release"
+  echo -e "  ${BOLD}Run:${RESET} flutter_release_manager"
 else
   echo -e "  ${RED}✗${RESET}  Installation failed. Try manually:"
   echo -e "  sudo mv $TEMP_BIN $INSTALL_DIR/$BINARY_NAME"
 fi
 echo ""
-
