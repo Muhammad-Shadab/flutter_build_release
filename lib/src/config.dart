@@ -5,6 +5,8 @@ class Config {
   final bool uploadDrive;
   final String rcloneRemote;
   final String? driveFolderName;
+  /// DEV | UAT | PROD — mandatory when uploadDrive is true, never persisted.
+  final String? environment;
   final String? teamId;
   final String scheme;
   final String exportMethod;
@@ -18,6 +20,7 @@ class Config {
     required this.uploadDrive,
     this.rcloneRemote = 'flutter_release_manager',
     this.driveFolderName,
+    this.environment,
     this.teamId,
     required this.scheme,
     required this.exportMethod,

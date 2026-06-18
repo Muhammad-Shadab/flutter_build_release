@@ -71,11 +71,11 @@ class ConfigCommand {
     stdout.writeln('');
     stdout.writeln('  ─── Current Configuration ──────────────────────────');
     stdout.writeln('');
-    _row('1', 'Flutter Project Directory',
+    _row('1', 'Project Directory',
         projectDir ?? '\x1B[1;33mnot set\x1B[0m');
     _row('2', 'App Name', appName ?? '\x1B[1;33mnot set\x1B[0m');
-    _row('3', 'Google Drive Account', driveStatus);
-    _row('4', 'Google Drive Folder',
+    _row('3', 'Google Account', driveStatus);
+    _row('4', 'Google Drive Root Folder',
         folderName ?? '\x1B[1;33mnot set\x1B[0m');
     _row('5', 'Diawi Token', diawiStatus);
     _row('6', 'Upload Preferences', _uploadPrefLabel(autoDrive, autoDiawi));
@@ -211,10 +211,10 @@ class ConfigCommand {
     Logger.ok('Google Drive re-authenticated.');
   }
 
-  // ── 4. Google Drive folder ─────────────────────────────────────────────────
+  // ── 4. Google Drive root folder ────────────────────────────────────────────
 
   Future<void> _editGoogleDriveFolder() async {
-    _section('Google Drive Folder');
+    _section('Google Drive Root Folder');
 
     if (!RcloneManager.remoteExists()) {
       stdout.writeln(

@@ -85,6 +85,7 @@ class Wizard {
     // ── 6. Android / Google Drive ─────────────────────────────────────────────
     bool uploadDrive;
     String? driveFolderName;
+    String? environment;
 
     if (args.wasParsed('upload-drive')) {
       uploadDrive = args['upload-drive'] as bool;
@@ -104,7 +105,13 @@ class Wizard {
         );
         exit(1);
       }
-      Logger.ok('Drive folder: $driveFolderName');
+      Logger.ok('Drive root folder: $driveFolderName');
+
+      // ── 6b. Environment (mandatory, never persisted) ───────────────────────
+      final envArg = args['environment'] as String?;
+      environment = envArg != null
+          ? _normalizeEnv(envArg)
+          : await _pickEnvironment();
     }
 
     // ── 7. Advanced options ───────────────────────────────────────────────────
@@ -163,6 +170,7 @@ class Wizard {
       appName: appName,
       uploadDrive: uploadDrive,
       driveFolderName: driveFolderName,
+      environment: environment,
       teamId: teamId,
       scheme: scheme,
       exportMethod: exportMethod,
@@ -181,6 +189,7 @@ class Wizard {
       uploadDrive: uploadDrive,
       rcloneRemote: AppConfig.remoteName,
       driveFolderName: driveFolderName,
+      environment: environment,
       teamId: teamId,
       scheme: scheme,
       exportMethod: exportMethod,
@@ -636,6 +645,46 @@ class Wizard {
     }
   }
 
+  // ── Environment picker ────────────────────────────────────────────────────
+
+  Future<String> _pickEnvironment() async {
+    _printSection('Environment');
+    stdout.writeln('');
+    stdout.writeln('  Select the build environment for Google Drive upload.');
+    stdout.writeln('  This determines where the APK is placed in Drive.');
+    stdout.writeln('');
+    stdout.writeln('  1) DEV   — development build for internal testing');
+    stdout.writeln('  2) UAT   — user acceptance testing');
+    stdout.writeln('  3) PROD  — production release');
+    stdout.writeln('');
+
+    while (true) {
+      stdout.write('  Enter choice [1/2/3]: ');
+      final raw = stdin.readLineSync()?.trim() ?? '';
+      switch (raw) {
+        case '1':
+          return 'DEV';
+        case '2':
+          return 'UAT';
+        case '3':
+          return 'PROD';
+        default:
+          _printError(
+            missing: 'Environment',
+            reason: 'Enter 1, 2, or 3.',
+            fix: '1 = DEV, 2 = UAT, 3 = PROD',
+          );
+      }
+    }
+  }
+
+  String _normalizeEnv(String raw) {
+    final upper = raw.trim().toUpperCase();
+    if (upper == 'DEV' || upper == 'UAT' || upper == 'PROD') return upper;
+    // Accept numeric shorthand from CI callers
+    return switch (upper) { '1' => 'DEV', '2' => 'UAT', '3' => 'PROD', _ => upper };
+  }
+
   // ── Summary ───────────────────────────────────────────────────────────────
 
   void _printSummary({
@@ -644,6 +693,7 @@ class Wizard {
     required String appName,
     required bool uploadDrive,
     required String? driveFolderName,
+    required String? environment,
     required String? teamId,
     required String scheme,
     required String exportMethod,
@@ -676,9 +726,16 @@ class Wizard {
         '  Drive Upload',
         uploadDrive ? 'Enabled' : 'Disabled — APK stays local',
       );
-      if (uploadDrive) {
-        _summaryRow('  Drive Folder', driveFolderName ?? '—');
+      if (uploadDrive && environment != null && driveFolderName != null) {
+        final now = DateTime.now();
+        final year = now.year.toString();
+        final month = _monthName(now.month);
+        final destination =
+            '$driveFolderName/$appName/$year/$month/$environment/';
+        _summaryRow('  Environment', environment);
         _summaryRow('  Google Account', driveAccount);
+        _summaryRow('  Drive Folder', driveFolderName);
+        _summaryRow('  Destination', destination);
       }
     }
 
@@ -700,6 +757,22 @@ class Wizard {
   void _summaryRow(String label, String value) {
     stdout.writeln('  ${label.padRight(18)}$value');
   }
+
+  String _monthName(int m) => const [
+        '',
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ][m];
 
   // ── Error display ─────────────────────────────────────────────────────────
 
@@ -792,6 +865,12 @@ ${parser.usage}
       'upload-drive',
       help: 'Upload the APK to Google Drive after build.',
       negatable: false,
+    )
+    ..addOption(
+      'environment',
+      abbr: 'e',
+      help: 'Upload environment: DEV | UAT | PROD (required when --upload-drive)',
+      allowed: ['DEV', 'UAT', 'PROD', 'dev', 'uat', 'prod'],
     )
     ..addOption(
       'team-id',
