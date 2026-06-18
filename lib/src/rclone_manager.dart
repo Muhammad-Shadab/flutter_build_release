@@ -145,7 +145,6 @@ class RcloneManager {
       _deleteRemoteConfig();
     }
 
-    _printSignInBanner();
     final tokenJson = await _obtainOAuthTokenViaBrowser();
     Logger.ok('Authorization complete.');
     Logger.step('Saving credentials to rclone remote "$remoteName"...');
@@ -290,23 +289,13 @@ class RcloneManager {
     );
   }
 
-  static void _printSignInBanner() {
-    stdout.writeln('');
-    stdout.writeln('  ─── Google Drive Sign-in ──────────────────────────────');
-    stdout.writeln('');
-    stdout.writeln('  Your browser will open for Google sign-in.');
-    stdout.writeln('  Sign in with the account that owns your Drive folder,');
-    stdout.writeln('  then click Allow — this tool will resume automatically.');
-    stdout.writeln('');
-  }
-
   /// Runs `rclone authorize drive` — browser-only, completely non-interactive.
   ///
   /// stdin is closed immediately (EOF). Output is monitored for interactive
   /// prompts; if any are detected the process is killed and init aborts.
   /// Returns the raw OAuth token JSON string extracted from rclone's output.
   static Future<String> _obtainOAuthTokenViaBrowser() async {
-    Logger.step('Opening browser for Google OAuth (waiting up to 5 min)...');
+    Logger.step('Opening browser for Google sign-in...');
 
     final process = await Process.start(
       'rclone',
@@ -317,23 +306,22 @@ class RcloneManager {
     // Send EOF to rclone's stdin immediately — prevents any blocking read.
     process.stdin.close().ignore();
 
+    Logger.step('Waiting for Google authorization (up to 5 minutes)...');
+
     final buffer = StringBuffer();
 
-    void onChunk(String chunk, IOSink sink) {
+    // Capture output only — do not forward raw rclone output to the terminal.
+    final stdoutSub =
+        process.stdout.transform(systemEncoding.decoder).listen((chunk) {
       buffer.write(chunk);
-      sink.write(chunk);
-      if (_hasInteractivePrompt(chunk)) {
-        process.kill();
-      }
-    }
+      if (_hasInteractivePrompt(chunk)) process.kill();
+    });
 
-    final stdoutSub = process.stdout
-        .transform(systemEncoding.decoder)
-        .listen((chunk) => onChunk(chunk, stdout));
-
-    final stderrSub = process.stderr
-        .transform(systemEncoding.decoder)
-        .listen((chunk) => onChunk(chunk, stderr));
+    final stderrSub =
+        process.stderr.transform(systemEncoding.decoder).listen((chunk) {
+      buffer.write(chunk);
+      if (_hasInteractivePrompt(chunk)) process.kill();
+    });
 
     late final int exitCode;
     try {

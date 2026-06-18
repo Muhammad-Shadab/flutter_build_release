@@ -3,7 +3,7 @@ description: >-
   Flutter build and release automation tool for Android and iOS. Build APKs and
   IPAs, upload to Google Drive via rclone, distribute through Diawi, and manage
   releases from a single CLI.
-version: 1.0.4
+version: 1.0.5
 homepage: https://github.com/Muhammad-Shadab/flutter_release_manager
 repository: https://github.com/Muhammad-Shadab/flutter_release_manager
 issue_tracker: https://github.com/Muhammad-Shadab/flutter_release_manager/issues

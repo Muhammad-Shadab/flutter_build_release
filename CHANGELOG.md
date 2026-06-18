@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.0.5
+
+### Fixed
+
+- **Drive not configured no longer hard-exits** — if rclone is not installed,
+  the remote is missing, or no Drive folder is selected, the tool now shows a
+  friendly prompt ("Google Drive Not Configured") and offers to continue with a
+  local-only build; the user can type `N` to cancel or Enter to proceed without
+  uploading
+- **App name prompt skipped when already saved** — if a name was saved from a
+  previous run (machine config or project config), it is used automatically and
+  shown as `✓ App name: Ruloans`; the prompt only appears on first use
+
+### Changed
+
+- **Upload preference auto-saved** — the "Save this preference?" follow-up
+  after the Drive / Diawi upload questions has been removed; the answer is saved
+  automatically on first response so the question is never asked again
+- **Build summary shows Google account email** — the Drive upload section now
+  shows the signed-in email address (e.g. `shadab@gmail.com`) instead of the
+  generic "Connected" label
+- **Clean OAuth output** — raw rclone authorization output is no longer printed
+  to the terminal during Google sign-in; only two clean status lines are shown:
+  `Opening browser for Google sign-in...` and
+  `Waiting for Google authorization (up to 5 minutes)...`
+- **Drive URL copied to clipboard** — after a successful Google Drive upload the
+  shareable link is automatically copied to the clipboard (macOS: `pbcopy`,
+  Windows: `clip`, Linux: `xclip` / `xsel` / `wl-copy`); shown as
+  `✓ Link copied to clipboard.`
+
+---
+
 ## 1.0.4
 
 ### Fixed

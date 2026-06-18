@@ -94,22 +94,31 @@ class Wizard {
 
     if (uploadDrive) {
       RcloneManager.migrateOldRemoteIfNeeded();
-      _ensureRcloneReady();
-      driveFolderName = AppConfig.folderName;
-      if (driveFolderName == null) {
-        _printError(
-          missing: 'Drive folder configuration',
-          reason: 'No Drive folder has been selected yet.',
-          fix: 'Run: flutter_release_manager init',
+      if (!RcloneManager.isInstalled()) {
+        uploadDrive = await _offerContinueWithoutDrive(
+          'rclone is not installed. It is required for Google Drive uploads.',
         );
-        exit(1);
+      } else if (!RcloneManager.remoteExists()) {
+        uploadDrive = await _offerContinueWithoutDrive(
+          'Google Drive has not been configured yet.',
+        );
+      } else {
+        driveFolderName = AppConfig.folderName;
+        if (driveFolderName == null) {
+          uploadDrive = await _offerContinueWithoutDrive(
+            'No Drive folder has been selected yet.',
+          );
+        }
       }
-      Logger.ok('Drive root folder: $driveFolderName');
 
-      // ── 6b. Environment (mandatory, never persisted) ───────────────────────
-      final envArg = args['environment'] as String?;
-      environment =
-          envArg != null ? _normalizeEnv(envArg) : await _pickEnvironment();
+      if (uploadDrive) {
+        Logger.ok('Drive root folder: $driveFolderName');
+
+        // ── 6b. Environment (mandatory, never persisted) ─────────────────────
+        final envArg = args['environment'] as String?;
+        environment =
+            envArg != null ? _normalizeEnv(envArg) : await _pickEnvironment();
+      }
     }
 
     // ── 7. Advanced options ───────────────────────────────────────────────────
@@ -290,12 +299,8 @@ class Wizard {
     ]);
 
     final answer = await _confirm('Upload APK to Google Drive after building?');
-    stdout.write('  Save this preference? [y/N]: ');
-    final save = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-    if (save == 'y' || save == 'yes') {
-      AppConfig.saveAutoUploadDrive(answer);
-      Logger.ok('Preference saved.');
-    }
+    AppConfig.saveAutoUploadDrive(answer);
+    Logger.ok('Preference saved.');
     return answer;
   }
 
@@ -316,35 +321,30 @@ class Wizard {
     ]);
 
     final answer = await _confirm('Upload IPA to Diawi?');
-    stdout.write('  Save this preference? [y/N]: ');
-    final save = stdin.readLineSync()?.trim().toLowerCase() ?? '';
-    if (save == 'y' || save == 'yes') {
-      AppConfig.saveAutoUploadDiawi(answer);
-      Logger.ok('Preference saved.');
-    }
+    AppConfig.saveAutoUploadDiawi(answer);
+    Logger.ok('Preference saved.');
     return answer;
   }
 
-  // ── rclone readiness ──────────────────────────────────────────────────────
+  // ── Drive not configured — friendly fallback ──────────────────────────────
 
-  void _ensureRcloneReady() {
-    if (!RcloneManager.isInstalled()) {
-      _printError(
-        missing: 'rclone',
-        reason: 'rclone is required for Google Drive uploads.',
-        fix: 'Run: flutter_release_manager init',
-      );
-      exit(1);
+  Future<bool> _offerContinueWithoutDrive(String reason) async {
+    stdout.writeln('');
+    stdout.writeln('  ─── Google Drive Not Configured ──────────────────────');
+    stdout.writeln('');
+    stdout.writeln('  $reason');
+    stdout.writeln('');
+    stdout.writeln('  Run:  flutter_release_manager init');
+    stdout.writeln('  (This setup is required only once.)');
+    stdout.writeln('');
+    stdout.write('  Continue without Drive upload? [Y/n]: ');
+    final answer = stdin.readLineSync()?.trim().toLowerCase() ?? 'y';
+    if (answer == 'n' || answer == 'no') {
+      stdout.writeln('  Build cancelled.');
+      exit(0);
     }
-
-    if (!RcloneManager.remoteExists()) {
-      _printError(
-        missing: 'rclone remote "${RcloneManager.remoteName}"',
-        reason: 'Google Drive has not been configured yet.',
-        fix: 'Run: flutter_release_manager init',
-      );
-      exit(1);
-    }
+    Logger.ok('Continuing with local build only.');
+    return false;
   }
 
   // ── Pre-flight validation ─────────────────────────────────────────────────
@@ -479,22 +479,21 @@ class Wizard {
 
   Future<String> _resolveAppName(String appDir) async {
     final savedName = _saved['appName'] as String?;
-    final detectedName = ProjectDetector.readAppName(appDir);
-    final defaultName = savedName ?? detectedName;
+    if (savedName != null) {
+      Logger.ok('App name: $savedName');
+      return savedName;
+    }
 
-    final sourceNote = savedName != null
-        ? 'Saved: $savedName'
-        : detectedName != null
-            ? 'Detected from pubspec.yaml: $detectedName'
-            : null;
+    final detectedName = ProjectDetector.readAppName(appDir);
 
     return _ask(
       label: 'App name',
-      defaultValue: defaultName,
+      defaultValue: detectedName,
       hints: [
         'Used as a prefix in the output file name.',
         'No spaces. CamelCase or underscores.',
-        if (sourceNote != null) '$sourceNote — press Enter to accept.',
+        if (detectedName != null)
+          'Detected from pubspec.yaml: $detectedName — press Enter to accept.',
       ],
       missing: 'App name',
       reason: 'The name labels the output APK and IPA files.',
@@ -699,8 +698,9 @@ class Wizard {
       _ => 'Android + iOS',
     };
 
-    final driveConnected = RcloneManager.remoteExists();
-    final driveAccount = driveConnected ? 'Connected' : 'Not set up';
+    final driveEmail = AppConfig.driveEmail;
+    final driveAccount = driveEmail ??
+        (RcloneManager.remoteExists() ? 'Connected' : 'Not set up');
 
     stdout.writeln('');
     stdout.writeln('╔══════════════════════════════════════════════╗');
@@ -725,9 +725,9 @@ class Wizard {
         final month = _monthName(now.month);
         final destination =
             '$driveFolderName/$appName/$year/$month/$environment/';
-        _summaryRow('  Environment', environment);
         _summaryRow('  Google Account', driveAccount);
         _summaryRow('  Drive Folder', driveFolderName);
+        _summaryRow('  Environment', environment);
         _summaryRow('  Destination', destination);
       }
     }

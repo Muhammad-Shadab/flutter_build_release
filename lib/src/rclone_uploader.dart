@@ -80,6 +80,7 @@ class RcloneUploader {
     if (url != null) {
       stdout.writeln('  Google Drive URL:');
       stdout.writeln('  $url');
+      await _copyToClipboard(url);
     } else {
       stdout.writeln('  (Open Google Drive to find the file)');
     }
@@ -346,4 +347,42 @@ class RcloneUploader {
       ][m];
 
   String _pad(int n) => n.toString().padLeft(2, '0');
+
+  // ── Clipboard ─────────────────────────────────────────────────────────────
+
+  Future<void> _copyToClipboard(String text) async {
+    try {
+      final encoded = utf8.encode(text);
+      if (Platform.isMacOS) {
+        final p = await Process.start('pbcopy', []);
+        p.stdin.add(encoded);
+        await p.stdin.close();
+        await p.exitCode;
+      } else if (Platform.isWindows) {
+        final p = await Process.start('clip', [], runInShell: true);
+        p.stdin.add(encoded);
+        await p.stdin.close();
+        await p.exitCode;
+      } else if (Platform.isLinux) {
+        const candidates = [
+          ['xclip', '-selection', 'clipboard'],
+          ['xsel', '--clipboard', '--input'],
+          ['wl-copy'],
+        ];
+        for (final cmd in candidates) {
+          if (Process.runSync('which', [cmd[0]], runInShell: true).exitCode ==
+              0) {
+            final p = await Process.start(cmd[0], cmd.sublist(1));
+            p.stdin.add(encoded);
+            await p.stdin.close();
+            await p.exitCode;
+            break;
+          }
+        }
+      }
+      Logger.ok('Link copied to clipboard.');
+    } catch (_) {
+      // Clipboard copy is optional — never block the release flow.
+    }
+  }
 }
