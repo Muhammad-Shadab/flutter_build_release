@@ -77,7 +77,15 @@ class RcloneUploader {
         Logger.step('Uploading (attempt $attempt/$maxAttempts)...');
         final code = await runLive(
           'rclone',
-          ['copyto', localPath, remotePath, '--stats', '5s'],
+          [
+            'copyto',
+            localPath,
+            remotePath,
+            '--progress',
+            '--stats-one-line',
+            '--stats',
+            '1s',
+          ],
           timeout: const Duration(minutes: 30),
         );
         if (code == 0) {

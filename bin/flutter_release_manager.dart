@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_release_manager/src/android_builder.dart';
+import 'package:flutter_release_manager/src/config_command.dart';
 import 'package:flutter_release_manager/src/doctor_command.dart';
 import 'package:flutter_release_manager/src/init_command.dart';
 import 'package:flutter_release_manager/src/ios_builder.dart';
@@ -8,7 +9,6 @@ import 'package:flutter_release_manager/src/logger.dart';
 import 'package:flutter_release_manager/src/wizard.dart';
 
 Future<void> main(List<String> args) async {
-  // Subcommand routing.
   if (args.isNotEmpty && args.first == 'init') {
     await InitCommand().run();
     return;
@@ -16,6 +16,11 @@ Future<void> main(List<String> args) async {
 
   if (args.isNotEmpty && args.first == 'doctor') {
     await DoctorCommand().run();
+    return;
+  }
+
+  if (args.isNotEmpty && args.first == 'config') {
+    await ConfigCommand().run();
     return;
   }
 

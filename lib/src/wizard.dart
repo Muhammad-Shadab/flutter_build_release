@@ -4,6 +4,7 @@ import 'package:args/args.dart';
 
 import 'app_config.dart';
 import 'config.dart';
+import 'config_command.dart';
 import 'config_store.dart';
 import 'logger.dart';
 import 'project_detector.dart';
@@ -30,11 +31,18 @@ class Wizard {
       exit(0);
     }
 
-    _printWelcome();
-
-    // Migrate config and Diawi token from previous package names on first run.
+    // Migrate config from previous package names on first run.
     AppConfig.migrateFromOldPackageName();
     AppConfig.migrateFromCredentialsJson();
+
+    _printWelcome();
+
+    // ── Startup screen — show current state if configured ─────────────────────
+    final bool isCiMode = args.wasParsed('platform') ||
+        args.wasParsed('app-dir') ||
+        args.wasParsed('upload-drive');
+
+    if (!isCiMode) await _showStartupScreen();
 
     // ── 1. App directory ──────────────────────────────────────────────────────
     final appDir = await _resolveAppDir(args['app-dir'] as String?);
@@ -43,7 +51,13 @@ class Wizard {
     _store = ConfigStore(appDir);
     _saved = _store!.load();
 
-    // Migrate diawiToken that was saved in the project config (v1.x / v2.x).
+    // Merge machine-level appName into saved if present.
+    final machineAppName = AppConfig.load()['appName'] as String?;
+    if (machineAppName != null && !_saved.containsKey('appName')) {
+      _saved['appName'] = machineAppName;
+    }
+
+    // Migrate diawiToken from project config (v1.x / v2.x).
     final legacyDiawi = _saved['diawiToken'] as String?;
     if (legacyDiawi != null && !AppConfig.hasDiawiToken) {
       AppConfig.saveDiawiToken(legacyDiawi);
@@ -65,27 +79,18 @@ class Wizard {
         args['app-name'] as String? ?? await _resolveAppName(appDir);
 
     // ── 6. Android / Google Drive ─────────────────────────────────────────────
-    bool uploadDrive = args['upload-drive'] as bool;
+    bool uploadDrive;
     String? driveFolderName;
 
-    if (buildAndroid && !uploadDrive && !args.wasParsed('upload-drive')) {
-      _printSection('Google Drive Upload');
-      _printHints([
-        'APKs are uploaded via rclone — no OAuth setup needed.',
-        'Run flutter_release_manager init once to configure Drive.',
-        'Skip to keep the APK on your machine.',
-      ]);
-      uploadDrive =
-          await _confirm('Upload APK to Google Drive after building?');
+    if (args.wasParsed('upload-drive')) {
+      uploadDrive = args['upload-drive'] as bool;
+    } else {
+      uploadDrive = await _resolveUploadDrive(buildAndroid);
     }
 
     if (uploadDrive) {
-      // Migrate old rclone remote if user skipped init after renaming package.
       RcloneManager.migrateOldRemoteIfNeeded();
-      // Ensure rclone and the remote are ready.
       _ensureRcloneReady();
-
-      // Folder name comes from AppConfig (set during init).
       driveFolderName = AppConfig.folderName;
       if (driveFolderName == null) {
         _printError(
@@ -113,21 +118,15 @@ class Wizard {
     if (buildIos) {
       teamId ??= (_saved['teamId'] as String?) ?? await _askTeamId();
 
-      // Resolve Diawi token: CLI > AppConfig > prompt.
       if (diawiToken == null) {
         diawiToken = AppConfig.diawiToken;
 
         if (diawiToken == null) {
-          _printSection('Diawi Upload (iOS)');
-          _printHints([
-            'Diawi gives testers a simple install link — no App Store needed.',
-            'Sign up at diawi.com → Account → API Access Tokens.',
-            'Skip to keep the IPA local.',
-          ]);
-          if (await _confirm('Upload IPA to Diawi?')) {
+          final uploadDiawi = await _resolveUploadDiawi();
+          if (uploadDiawi) {
             diawiToken = await _askDiawiToken();
             AppConfig.saveDiawiToken(diawiToken);
-            Logger.ok('Diawi token saved to ${AppConfig.path}');
+            Logger.ok('Diawi token saved.');
           }
         }
       }
@@ -149,6 +148,10 @@ class Wizard {
       'exportMethod': exportMethod,
     });
 
+    // Also save appDir and appName at machine level for startup screen.
+    AppConfig.saveProjectDirectory(appDir);
+    AppConfig.save({'appName': appName});
+
     // ── 11. Summary + confirmation ────────────────────────────────────────────
     _printSummary(
       platform: platform,
@@ -163,9 +166,7 @@ class Wizard {
       skipBuild: skipBuild,
     );
 
-    stdout.write(
-      '  Press Enter to start the build, or Ctrl+C to cancel... ',
-    );
+    stdout.write('  Press Enter to start the build, or Ctrl+C to cancel... ');
     stdin.readLineSync();
     stdout.writeln('');
 
@@ -182,6 +183,129 @@ class Wizard {
       diawiToken: diawiToken,
       skipBuild: skipBuild,
     );
+  }
+
+  // ── Startup screen ────────────────────────────────────────────────────────
+
+  /// Shows current configuration summary. Exits if user chose quit.
+  Future<void> _showStartupScreen() async {
+    final cfg = AppConfig.load();
+    final projectDir = cfg['projectDirectory'] as String?;
+    final appName = cfg['appName'] as String?;
+    final folderName = cfg['folderName'] as String?;
+    final hasDiawi = (cfg['diawiToken'] as String?)?.isNotEmpty == true;
+    final driveConnected = RcloneManager.remoteExists();
+
+    // Only show startup screen if something is already configured.
+    if (projectDir == null && folderName == null && !driveConnected) return;
+
+    stdout.writeln('  ─── Current Configuration ──────────────────────────');
+    stdout.writeln('');
+
+    if (projectDir != null && appName != null) {
+      _infoRow('Project', '$appName  ($projectDir)');
+    } else if (projectDir != null) {
+      _infoRow('Project', projectDir);
+    }
+
+    _infoRow(
+      'Drive Account',
+      driveConnected
+          ? '\x1B[0;32mConnected\x1B[0m'
+          : '\x1B[1;33mNot set up\x1B[0m',
+    );
+
+    if (folderName != null) {
+      _infoRow('Drive Folder', folderName);
+    }
+
+    _infoRow(
+      'Diawi',
+      hasDiawi
+          ? '\x1B[0;32mConfigured\x1B[0m'
+          : '\x1B[1;33mNot set\x1B[0m',
+    );
+
+    stdout.writeln('');
+    stdout.writeln('  [Enter]  Continue with these settings');
+    stdout.writeln('  [c]      Edit configuration');
+    stdout.writeln('  [q]      Quit');
+    stdout.writeln('');
+    stdout.write('  > ');
+
+    final input = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+    stdout.writeln('');
+
+    if (input == 'q') {
+      stdout.writeln('  Goodbye.');
+      exit(0);
+    }
+
+    if (input == 'c') {
+      await ConfigCommand().run();
+      // Re-show startup screen so updated values are visible.
+      await _showStartupScreen();
+    }
+  }
+
+  void _infoRow(String label, String value) {
+    stdout.writeln('  ${label.padRight(16)}$value');
+  }
+
+  // ── Upload preference resolution ──────────────────────────────────────────
+
+  Future<bool> _resolveUploadDrive(bool buildingAndroid) async {
+    if (!buildingAndroid) return false;
+
+    final pref = AppConfig.autoUploadDrive;
+    if (pref != null) {
+      Logger.ok(
+        'Drive upload: ${pref ? "enabled" : "disabled"} (saved preference).',
+      );
+      return pref;
+    }
+
+    _printSection('Google Drive Upload');
+    _printHints([
+      'APKs are uploaded via rclone — no OAuth setup needed.',
+      'Run flutter_release_manager init once to configure Drive.',
+      'Save your preference in: flutter_release_manager config',
+    ]);
+
+    final answer = await _confirm('Upload APK to Google Drive after building?');
+    stdout.write('  Save this preference? [y/N]: ');
+    final save = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+    if (save == 'y' || save == 'yes') {
+      AppConfig.saveAutoUploadDrive(answer);
+      Logger.ok('Preference saved.');
+    }
+    return answer;
+  }
+
+  Future<bool> _resolveUploadDiawi() async {
+    final pref = AppConfig.autoUploadDiawi;
+    if (pref != null) {
+      Logger.ok(
+        'Diawi upload: ${pref ? "enabled" : "disabled"} (saved preference).',
+      );
+      return pref;
+    }
+
+    _printSection('Diawi Upload (iOS)');
+    _printHints([
+      'Diawi gives testers a simple install link — no App Store needed.',
+      'Sign up at diawi.com → Account → API Access Tokens.',
+      'Save your preference in: flutter_release_manager config',
+    ]);
+
+    final answer = await _confirm('Upload IPA to Diawi?');
+    stdout.write('  Save this preference? [y/N]: ');
+    final save = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+    if (save == 'y' || save == 'yes') {
+      AppConfig.saveAutoUploadDiawi(answer);
+      Logger.ok('Preference saved.');
+    }
+    return answer;
   }
 
   // ── rclone readiness ──────────────────────────────────────────────────────
@@ -217,9 +341,7 @@ class Wizard {
 
     final whichCmd = Platform.isWindows ? 'where' : 'which';
 
-    // flutter
-    if (Process.runSync(whichCmd, ['flutter'], runInShell: true).exitCode !=
-        0) {
+    if (Process.runSync(whichCmd, ['flutter'], runInShell: true).exitCode != 0) {
       _printError(
         missing: 'flutter command',
         reason: 'flutter is required to build the app.',
@@ -229,13 +351,8 @@ class Wizard {
     }
     Logger.ok('flutter found');
 
-    // xcodebuild (iOS only)
     if (buildIos &&
-        Process.runSync(
-              whichCmd,
-              ['xcodebuild'],
-              runInShell: true,
-            ).exitCode !=
+        Process.runSync(whichCmd, ['xcodebuild'], runInShell: true).exitCode !=
             0) {
       _printError(
         missing: 'xcodebuild command',
@@ -246,12 +363,10 @@ class Wizard {
     }
     if (buildIos) Logger.ok('xcodebuild found');
 
-    // rclone + remote (Drive only)
     if (uploadDrive) {
       Logger.ok('rclone found — ${RcloneManager.installedVersion()}');
       Logger.ok('rclone remote "${RcloneManager.remoteName}" configured');
 
-      // Quick connection test.
       final about = Process.runSync(
         'rclone',
         ['about', '${RcloneManager.remoteName}:'],
@@ -279,17 +394,34 @@ class Wizard {
       return cliValue;
     }
 
+    // 1. Saved machine-level project directory.
+    final saved = AppConfig.projectDirectory;
+    if (saved != null) {
+      if (!Directory(saved).existsSync()) {
+        Logger.skip(
+          'Saved project directory no longer exists: $saved',
+        );
+        AppConfig.clearProjectDirectory();
+      } else if (File('$saved/pubspec.yaml').existsSync()) {
+        Logger.ok('Project: $saved');
+        return saved;
+      }
+    }
+
+    // 2. Detect from CWD.
     final detected = ProjectDetector.detectAppDir();
     if (detected != null) {
       Logger.ok('Flutter project detected: $detected');
       return detected;
     }
 
+    // 3. Ask.
     return _ask(
       label: 'Flutter app directory',
       hints: [
         'This is the folder that contains your pubspec.yaml file.',
         'Example: /Users/john/projects/my_app',
+        'Tip: run this command from inside your Flutter project.',
       ],
       missing: 'Flutter app directory path',
       reason: 'The build process needs to know where your Flutter project is.',
@@ -333,7 +465,7 @@ class Wizard {
     final defaultName = savedName ?? detectedName;
 
     final sourceNote = savedName != null
-        ? 'Saved from last run: $savedName'
+        ? 'Saved: $savedName'
         : detectedName != null
             ? 'Detected from pubspec.yaml: $detectedName'
             : null;
@@ -343,7 +475,7 @@ class Wizard {
       defaultValue: defaultName,
       hints: [
         'Used as a prefix in the output file name.',
-        'No spaces allowed. Use CamelCase or underscores.',
+        'No spaces. CamelCase or underscores.',
         if (sourceNote != null) '$sourceNote — press Enter to accept.',
       ],
       missing: 'App name',
@@ -520,39 +652,49 @@ class Wizard {
       _ => 'Android + iOS',
     };
 
+    final driveConnected = RcloneManager.remoteExists();
+    final driveAccount = driveConnected ? 'Connected' : 'Not set up';
+
     stdout.writeln('');
     stdout.writeln('╔══════════════════════════════════════════════╗');
     stdout.writeln('  Build Summary');
     stdout.writeln('╚══════════════════════════════════════════════╝');
     stdout.writeln('');
-    stdout.writeln('  Platform      $platformLabel');
-    stdout.writeln('  App dir       $appDir');
-    stdout.writeln('  App name      $appName');
-    if (skipBuild) stdout.writeln('  Mode          Upload only (skip build)');
+    _summaryRow('Project', appName);
+    _summaryRow('Directory', appDir);
+    _summaryRow('Platform', platformLabel);
+    if (skipBuild) _summaryRow('Mode', 'Upload only (skip build)');
 
     if (platform == 'android' || platform == 'both') {
       stdout.writeln('');
       stdout.writeln('  Android');
+      _summaryRow(
+        '  Drive Upload',
+        uploadDrive ? 'Enabled' : 'Disabled — APK stays local',
+      );
       if (uploadDrive) {
-        stdout.writeln('    Drive upload  Yes (via rclone)');
-        stdout.writeln('    Folder        $driveFolderName');
-      } else {
-        stdout.writeln('    Drive upload  No — APK stays local');
+        _summaryRow('  Drive Folder', driveFolderName ?? '—');
+        _summaryRow('  Google Account', driveAccount);
       }
     }
 
     if (platform == 'ios' || platform == 'both') {
       stdout.writeln('');
       stdout.writeln('  iOS');
-      stdout.writeln('    Team ID       $teamId');
-      stdout.writeln('    Scheme        $scheme');
-      stdout.writeln('    Export        $exportMethod');
-      stdout.writeln(
-        '    Diawi upload  ${diawiToken != null ? 'Yes' : 'No — IPA stays local'}',
+      _summaryRow('  Team ID', teamId ?? '—');
+      _summaryRow('  Scheme', scheme);
+      _summaryRow('  Export Method', exportMethod);
+      _summaryRow(
+        '  Diawi Upload',
+        diawiToken != null ? 'Enabled' : 'Disabled — IPA stays local',
       );
     }
 
     stdout.writeln('');
+  }
+
+  void _summaryRow(String label, String value) {
+    stdout.writeln('  ${label.padRight(18)}$value');
   }
 
   // ── Error display ─────────────────────────────────────────────────────────
@@ -568,7 +710,7 @@ class Wizard {
     stderr.writeln('  ❌  Reason:  $reason');
     if (examples.isNotEmpty) {
       stderr.writeln(
-        '  ❌  Example${examples.length > 1 ? 's' : ''}:',
+        '  ❌  Example${examples.length > 1 ? "s" : ""}:',
       );
       for (final e in examples) {
         stderr.writeln('      $e');
@@ -583,7 +725,7 @@ class Wizard {
   void _printWelcome() {
     stdout.writeln('');
     stdout.writeln('╔══════════════════════════════════════════════╗');
-    stdout.writeln('  flutter_release_manager  v3');
+    stdout.writeln('  flutter_release_manager  v1');
     stdout.writeln('  Build · Archive · Distribute');
     stdout.writeln('╚══════════════════════════════════════════════╝');
     stdout.writeln('');
@@ -614,6 +756,7 @@ Commands:
   flutter_release_manager          Build and upload (interactive)
   flutter_release_manager init     First-time setup: install rclone, sign into Google Drive
   flutter_release_manager doctor   Check all prerequisites
+  flutter_release_manager config   Edit saved configuration
 
 Flags (useful for CI/scripts):
   flutter_release_manager --platform <android|ios|both> --app-dir <path> --app-name <name> [options]

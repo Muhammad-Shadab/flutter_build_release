@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 /// Machine-level config at ~/.config/flutter_release_manager/config.json.
-/// Stores the rclone remote name, selected Drive folder, and Diawi token.
-/// No OAuth credentials are managed here — rclone owns authentication.
+/// Stores: rclone remote name, Drive folder, Diawi token, project directory,
+/// upload preferences. No OAuth credentials — rclone owns authentication.
 class AppConfig {
   static const remoteName = 'flutter_release_manager';
 
@@ -24,7 +24,6 @@ class AppConfig {
     return '$home/.config/flutter_release_manager';
   }
 
-  /// The config directory that the old package name used.
   static String get _oldDir {
     if (Platform.isLinux) {
       final xdg = Platform.environment['XDG_CONFIG_HOME'];
@@ -72,6 +71,8 @@ class AppConfig {
     _write(current);
   }
 
+  // ── Getters ────────────────────────────────────────────────────────────────
+
   static String? get folderName {
     final v = load()['folderName'];
     return v is String && v.isNotEmpty ? v : null;
@@ -82,18 +83,68 @@ class AppConfig {
     return v is String && v.isNotEmpty ? v : null;
   }
 
+  static String? get projectDirectory {
+    final v = load()['projectDirectory'];
+    return v is String && v.isNotEmpty ? v : null;
+  }
+
+  /// null = not set (will ask). true/false = remembered preference.
+  static bool? get autoUploadDrive {
+    final v = load()['autoUploadDrive'];
+    return v is bool ? v : null;
+  }
+
+  /// null = not set (will ask). true/false = remembered preference.
+  static bool? get autoUploadDiawi {
+    final v = load()['autoUploadDiawi'];
+    return v is bool ? v : null;
+  }
+
   static bool get isConfigured => folderName != null;
   static bool get hasDiawiToken => diawiToken != null;
+
+  // ── Setters ────────────────────────────────────────────────────────────────
 
   static void saveFolderName(String folder) =>
       save({'folderName': folder, 'remote': remoteName});
 
   static void saveDiawiToken(String token) => save({'diawiToken': token});
 
-  /// Migrates config from the old flutter_build_release directory if it exists
-  /// and the new directory has not been created yet. Runs once, silently.
+  static void saveProjectDirectory(String dir) =>
+      save({'projectDirectory': dir});
+
+  static void saveAutoUploadDrive(bool value) =>
+      save({'autoUploadDrive': value});
+
+  static void saveAutoUploadDiawi(bool value) =>
+      save({'autoUploadDiawi': value});
+
+  static void clearProjectDirectory() {
+    final current = load();
+    current.remove('projectDirectory');
+    _write(current);
+  }
+
+  static void clearDiawiToken() {
+    final current = load();
+    current.remove('diawiToken');
+    _write(current);
+  }
+
+  static void clearUploadPreferences() {
+    final current = load();
+    current.remove('autoUploadDrive');
+    current.remove('autoUploadDiawi');
+    _write(current);
+  }
+
+  /// Wipes all config. The rclone remote itself is NOT deleted.
+  static void resetAll() => _write({});
+
+  // ── Migration ──────────────────────────────────────────────────────────────
+
   static void migrateFromOldPackageName() {
-    if (Directory(_dir).existsSync()) return; // already on new layout
+    if (Directory(_dir).existsSync()) return;
     final oldConfig = File('$_oldDir/config.json');
     if (!oldConfig.existsSync()) return;
     try {
@@ -107,9 +158,7 @@ class AppConfig {
     } catch (_) {}
   }
 
-  /// Migrates diawiToken from v2.0.x credentials.json if it exists.
   static void migrateFromCredentialsJson() {
-    // Check both old and new config dirs.
     for (final dir in [_dir, _oldDir]) {
       final oldFile = File('$dir/credentials.json');
       if (!oldFile.existsSync()) continue;
