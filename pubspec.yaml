@@ -1,8 +1,8 @@
 name: flutter_release_manager
 description: >-
   Build and distribute Flutter APK and IPA with one command. Uploads to Google
-  Drive and Diawi automatically. No Google Cloud Console, no OAuth setup, no
-  rclone knowledge required.
+    Drive and Diawi automatically. No Google Cloud Console, no OAuth setup, no
+    rclone knowledge required.
 version: 1.0.0
 homepage: https://github.com/Muhammad-Shadab/flutter_release_manager
 repository: https://github.com/Muhammad-Shadab/flutter_release_manager
