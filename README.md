@@ -997,7 +997,7 @@ dart pub global deactivate flutter_build_release
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT License © 2026 Muhammad Shadab
 
 ---
 
