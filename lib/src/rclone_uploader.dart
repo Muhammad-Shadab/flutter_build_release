@@ -178,7 +178,11 @@ class RcloneUploader {
   }
 
   /// Runs `rclone copyto` and renders a live progress bar by parsing
-  /// rclone's `--stats-one-line` stderr output.
+  /// rclone's JSON log output.
+  ///
+  /// `--use-json-log` forces rclone to write one JSON object per line to
+  /// stderr regardless of whether stderr is a TTY — unlike `--stats-one-line`
+  /// which suppresses output when not connected to a terminal.
   Future<bool> _uploadOnce(
     String localPath,
     String remotePath,
@@ -190,9 +194,11 @@ class RcloneUploader {
         'copyto',
         localPath,
         remotePath,
+        '--use-json-log',
+        '--log-level',
+        'INFO',
         '--stats',
         '1s',
-        '--stats-one-line',
       ],
       runInShell: false,
     );
@@ -201,12 +207,30 @@ class RcloneUploader {
     // rclone copyto has no meaningful stdout — pass through in case.
     final stdoutSub = process.stdout.listen(stdout.add);
 
-    // Parse stats from stderr for the progress bar; buffer remainder for
-    // error reporting on failure.
-    final errBuf = StringBuffer();
-    final stderrSub = process.stderr.transform(utf8.decoder).listen((chunk) {
-      errBuf.write(chunk);
-      _renderProgress(chunk, fileSize);
+    // Parse JSON log lines from stderr. Each line is one JSON object:
+    //   {"level":"notice","msg":"Transferred: 42.1 MiB / 65.4 MiB, 64%, ..."}
+    // Collect error-level messages to display on failure.
+    final errorLines = <String>[];
+    final stderrSub = process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+      if (line.trim().isEmpty) return;
+      try {
+        final data = jsonDecode(line) as Map<String, dynamic>;
+        final msg = (data['msg'] as String? ?? '').trim();
+        final level = data['level'] as String? ?? '';
+        if (msg.contains('Transferred:') && msg.contains('%')) {
+          _renderProgress(msg, fileSize);
+        } else if (level == 'error' || level == 'fatal') {
+          errorLines.add(msg);
+        }
+      } catch (_) {
+        // Non-JSON fallback — try parsing as a plain stats line.
+        if (line.contains('Transferred:') && line.contains('%')) {
+          _renderProgress(line, fileSize);
+        }
+      }
     });
 
     try {
@@ -215,16 +239,8 @@ class RcloneUploader {
       await stderrSub.cancel();
       stdout.write('\r\x1B[K'); // erase progress line
       if (code != 0) {
-        final err = errBuf.toString().trim();
-        if (err.isNotEmpty) {
-          // Filter out stats lines — only show actual error messages.
-          for (final line in err.split('\n')) {
-            if (!line.contains('Transferred:') &&
-                !line.contains('Elapsed time') &&
-                line.trim().isNotEmpty) {
-              stderr.writeln('  $line');
-            }
-          }
+        for (final line in errorLines) {
+          if (line.isNotEmpty) stderr.writeln('  $line');
         }
       } else {
         Logger.ok('Upload complete.');

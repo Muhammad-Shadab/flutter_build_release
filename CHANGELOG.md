@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.0.2
+
+### Fixed
+
+- **Platform selection always shown** — platform (Android / iOS / Android + iOS)
+  is now asked on every run and never auto-selected from saved config; this was
+  silently defaulting to the previously saved platform, which caused unintended
+  builds
+- **Google Drive upload progress now visible** — switched rclone stats from
+  `--stats-one-line` (suppressed when stderr is not a TTY) to
+  `--use-json-log --stats 1s` (JSON lines written to stderr unconditionally);
+  live progress bar with %, MB transferred, speed, and ETA now renders reliably
+
+### Changed
+
+- Platform is no longer saved to the project config file; it is always a
+  build-time prompt
+
+---
+
 ## 1.0.1
 
 ### Added

@@ -72,9 +72,8 @@ class Wizard {
         (args['skip-build'] as bool) || (args['upload-only'] as bool);
 
     // ── 4. Platform ───────────────────────────────────────────────────────────
-    final platform = args['platform'] as String? ??
-        (_saved['platform'] as String?) ??
-        await _pickPlatform();
+    // Never auto-select from saved config — platform is a build-time decision.
+    final platform = args['platform'] as String? ?? await _pickPlatform();
     final buildAndroid = platform == 'android' || platform == 'both';
     final buildIos = platform == 'ios' || platform == 'both';
 
@@ -150,8 +149,8 @@ class Wizard {
     );
 
     // ── 10. Persist project-level config ──────────────────────────────────────
+    // Platform is intentionally excluded — user must choose every build.
     _store!.save({
-      'platform': platform,
       'appName': appName,
       if (teamId != null) 'teamId': teamId,
       'scheme': scheme,
@@ -543,33 +542,20 @@ class Wizard {
   // ── Platform picker ───────────────────────────────────────────────────────
 
   Future<String> _pickPlatform() async {
-    final savedPlatform = _saved['platform'] as String?;
-    final savedChoice = switch (savedPlatform) {
-      'android' => '1',
-      'ios' => '2',
-      'both' => '3',
-      _ => null,
-    };
-
     _printSection('Platform');
     stdout.writeln('');
-    stdout.writeln('  What do you want to build?');
-    stdout.writeln('  1) Android only  — generates APK');
-    stdout.writeln('  2) iOS only      — generates IPA');
-    stdout.writeln('  3) Both          — APK + IPA');
+    stdout.writeln('  What would you like to build?');
+    stdout.writeln('');
+    stdout.writeln('  1. Android APK');
+    stdout.writeln('  2. iOS IPA');
+    stdout.writeln('  3. Android + iOS');
     stdout.writeln('');
 
     while (true) {
-      if (savedChoice != null) {
-        stdout.write('  Enter choice [1/2/3] (last: $savedChoice): ');
-      } else {
-        stdout.write('  Enter choice [1/2/3]: ');
-      }
-
+      stdout.write('  Choice: ');
       final raw = stdin.readLineSync()?.trim() ?? '';
-      final choice = (raw.isEmpty && savedChoice != null) ? savedChoice : raw;
 
-      switch (choice) {
+      switch (raw) {
         case '1':
           return 'android';
         case '2':
@@ -577,11 +563,7 @@ class Wizard {
         case '3':
           return 'both';
         default:
-          _printError(
-            missing: 'Platform selection',
-            reason: 'Enter 1, 2, or 3.',
-            fix: '1 = Android, 2 = iOS, 3 = Both',
-          );
+          stdout.writeln('  Enter 1, 2, or 3.');
       }
     }
   }
