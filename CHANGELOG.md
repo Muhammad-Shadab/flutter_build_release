@@ -1,79 +1,99 @@
 # Changelog
 
+## 1.0.1
+
+### Added
+
+- **Environment selection** — choose DEV, UAT, or PROD before every Drive upload;
+  selection is mandatory and never persisted so each build is intentional
+- **New Google Drive hierarchy** — uploads now land at
+  `<root>/<AppName>/<year>/<month>/<ENV>/<file>.apk` instead of the flat
+  `<root>/<year>/<month>/<file>.apk` structure; supports multiple apps, multiple
+  environments, and long-term archive navigation
+- **Smart folder reuse** — before creating any folder at any hierarchy level,
+  existing folders are listed and matched case-insensitively (`Ruloans` reuses
+  `ruloans`); prevents duplicate folders across runs
+- **Destination preview** — tree view of the full upload path is displayed
+  before the upload starts so the user can verify the destination
+- **Real-time upload progress** — rclone stats parsed in real time and rendered
+  as `[████░░░] 64%  42.1 MB / 65.4 MB  4.2 MB/s  ETA: 6s`; updates every
+  second throughout the upload
+- **`flutter_release_manager config`** — interactive menu for editing project
+  directory, app name, Google Drive account, Drive root folder, Diawi token,
+  upload preferences; reset option included; saves immediately
+- **Startup configuration screen** — on subsequent runs shows current project,
+  Drive folder, account status, and Diawi status; one-key navigation
+  (`[Enter]` continue, `[c]` config, `[q]` quit)
+- **Persistent upload preferences** — `autoUploadDrive` and `autoUploadDiawi`
+  saved to machine config; tool never asks for information it already knows
+- **macOS Gatekeeper handling** — one-time security notice shown before first
+  build; Gatekeeper error patterns detected in build output with actionable
+  recovery steps (System Settings path + xattr command)
+- **`flutter_release_manager doctor`** — now includes `dart` executable check
+  and macOS Gatekeeper advisory section that detects quarantined binaries and
+  prints exact `xattr` clear commands
+- **`--environment` / `-e` flag** — CI/non-interactive mode: pass
+  `--environment UAT` to skip the interactive prompt
+
+### Changed
+
+- **Drive upload path** — new hierarchy: Root Folder → App Name → Year →
+  Month → Environment → APK file
+- **APK filename** — now includes environment:
+  `AppName_ENV_YYYY_MM_DD_HHmm.apk` (e.g. `Ruloans_UAT_2026_06_18_1326.apk`)
+- **Build summary** — shows Environment, Google Account, Drive Folder, and full
+  Destination path before every build
+- **Config menu option 4** — renamed to "Google Drive Root Folder"
+- **Onboarding** — macOS users see a one-time security notice with clear
+  instructions for approving Dart, Flutter, and rclone on first use
+
+### Fixed
+
+- Duplicate Drive folders from case mismatch (e.g. `Ruloans` vs `ruloans`)
+- Upload preferences not being remembered between runs
+- Saved project directory no longer validated on startup — warns and asks for
+  replacement if the directory has been moved or deleted
+- Progress display cleared cleanly between upload retries
+
+---
+
 ## 1.0.0
 
-Initial release of `flutter_release_manager` — a brand-new package that
-supersedes the retired `flutter_build_release` package.
+Initial release of `flutter_release_manager`.
 
 ### Features
 
-- **Android APK build automation** — runs `flutter build apk --split-per-abi`,
-  selects the `arm64-v8a` artifact automatically (falls back to `armeabi-v7a`)
-- **iOS IPA build automation** — archives and exports via `xcodebuild`; no
-  manual Xcode interaction required
-- **Google Drive upload** — powered by rclone; no Google Cloud Console, no
-  OAuth client IDs, no API keys; one browser sign-in during init and never again
-- **Diawi upload** — iOS IPA distributed to testers via a shareable install
-  link; Diawi token stored securely in machine config
-- **Automated rclone authentication** — `flutter_release_manager init` installs
-  rclone (macOS via Homebrew, Linux via apt-get), opens a browser for Google
-  OAuth, and embeds the token in the rclone remote non-interactively; no
-  interactive prompts, no deadlocks
-- **Upload retry logic** — 3 attempts with exponential back-off (3s, 6s) for
-  both Google Drive and Diawi uploads; 30-minute upload timeout
-- **Live upload progress** — Google Drive upload shows percentage, bytes
-  transferred, speed, and ETA via rclone's `--progress` flag; Diawi upload
-  shows a byte-level progress bar updated every chunk
-- **`flutter_release_manager doctor`** — pre-flight health check: verifies
-  flutter, rclone, Google Drive remote, Drive connection, Drive folder, and
-  Diawi token
-- **`flutter_release_manager init`** — one-time setup wizard; installs rclone,
-  signs into Google Drive, picks destination folder, saves Diawi token
-- **`flutter_release_manager config`** — interactive configuration editor with
-  menu-driven editing of project directory, app name, Google Drive account,
-  Drive folder, Diawi token, and upload preferences; reset option included
-- **Persistent configuration** — project directory, app name, and upload
-  preferences (auto-upload / skip / ask) are saved to machine config; the tool
-  never asks for information it already knows
-- **Startup summary screen** — on subsequent runs shows current project, Drive
-  folder, account status, and Diawi status with one-key navigation (`Enter` /
-  `c` / `q`)
-- **Upload preference memory** — `autoUploadDrive` and `autoUploadDiawi`
-  settings suppress the upload prompt on every run; editable via
-  `flutter_release_manager config`
-- **Project directory validation** — if the saved project directory is deleted,
-  the tool warns and asks for a replacement; no silent failures
-- **Detailed build summary** — shows project name, directory, platform, Drive
-  folder, account status, and Diawi status before every build
-- **CI / non-interactive mode** — all settings overridable via flags
-  (`--platform`, `--app-dir`, `--app-name`, `--upload-drive`, `--team-id`,
-  `--diawi-token`, `--skip-build`)
-- **Upload-only mode** — `--skip-build` / `--upload-only` re-uploads the last
-  built artifact without recompiling; useful after a failed upload
-- **Automatic configuration migration** from `flutter_build_release` — machine
-  config, project config file, and rclone remote token are all migrated on
-  first run; no re-authentication required
-- **Deadlock prevention** — stdin closed immediately on all rclone subprocesses;
-  interactive-prompt pattern detection kills the process rather than hanging
+- Android APK build automation (`flutter build apk --split-per-abi`)
+- iOS IPA build automation via `xcodebuild` archive and export
+- Google Drive upload via rclone — no Google Cloud Console, no OAuth client IDs
+- Diawi upload for iOS tester distribution
+- `flutter_release_manager init` — installs rclone, signs into Google Drive,
+  picks destination folder, saves Diawi token
+- `flutter_release_manager doctor` — pre-flight health check
+- Automatic rclone installation (macOS: Homebrew, Linux: apt-get)
+- Upload retry with exponential back-off (3 attempts, 3s/6s delays)
+- 30-minute upload timeout; 5-minute OAuth timeout
+- Non-interactive rclone authentication — stdin closed immediately, interactive
+  prompt detection kills the process rather than hanging
+- CI/non-interactive mode via flags (`--platform`, `--app-dir`, `--app-name`,
+  `--upload-drive`, `--team-id`, `--skip-build`)
+- Automatic migration from `flutter_build_release` — machine config, project
+  config, and rclone remote token all migrated on first run
 
 ---
 
 ### Migrating from `flutter_build_release`
 
-1. Activate the new package:
-   ```bash
-   dart pub global activate flutter_release_manager
-   ```
-2. Run init (your existing Google Drive access is preserved automatically):
-   ```bash
-   flutter_release_manager init
-   ```
-3. Deactivate the old package:
-   ```bash
-   dart pub global deactivate flutter_build_release
-   ```
-4. Update any CI scripts: replace `flutter_build_release` with
-   `flutter_release_manager`.
+```bash
+# Install the new package
+dart pub global activate flutter_release_manager
 
-All saved configuration, Google Drive tokens, and project settings are migrated
-silently on first run. No data loss. No re-authentication.
+# Run init (existing Google Drive access is preserved)
+flutter_release_manager init
+
+# Remove the old package
+dart pub global deactivate flutter_build_release
+```
+
+All saved configuration, Google Drive tokens, and project settings migrate
+silently on first run. No re-authentication required.

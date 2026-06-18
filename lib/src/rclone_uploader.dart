@@ -90,8 +90,7 @@ class RcloneUploader {
 
   // ── Filename ──────────────────────────────────────────────────────────────
 
-  String _buildFileName(DateTime now, String env) =>
-      '${config.appName}_${env}_'
+  String _buildFileName(DateTime now, String env) => '${config.appName}_${env}_'
       '${now.year}_${_pad(now.month)}_${_pad(now.day)}_'
       '${_pad(now.hour)}${_pad(now.minute)}.apk';
 
@@ -211,8 +210,7 @@ class RcloneUploader {
     });
 
     try {
-      final code =
-          await process.exitCode.timeout(const Duration(minutes: 30));
+      final code = await process.exitCode.timeout(const Duration(minutes: 30));
       await stdoutSub.cancel();
       await stderrSub.cancel();
       stdout.write('\r\x1B[K'); // erase progress line

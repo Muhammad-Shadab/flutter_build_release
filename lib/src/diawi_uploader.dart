@@ -65,8 +65,7 @@ class DiawiUploader {
           '${maxAttempts > 1 ? " (attempt $attempt/$maxAttempts)" : ""}...',
         );
 
-        final jobToken =
-            await _uploadWithProgress(ipaFile, totalBytes);
+        final jobToken = await _uploadWithProgress(ipaFile, totalBytes);
         if (jobToken != null) return jobToken;
         throw Exception('No job token in Diawi response');
       } on Exception catch (e) {
@@ -92,27 +91,28 @@ class DiawiUploader {
 
     // Wrap the file stream to count bytes and display progress.
     final fileStream = ipaFile.openRead().transform(
-      StreamTransformer<List<int>, List<int>>.fromHandlers(
-        handleData: (data, sink) {
-          bytesSent += data.length;
-          _printProgress(bytesSent, totalBytes, startTime);
-          sink.add(data);
-        },
-        handleDone: (sink) {
-          // Clear progress line and print completion.
-          stdout.write('\r\x1B[K');
-          Logger.ok(
-            'Uploaded ${_bytesLabel(totalBytes)} in '
-            '${_elapsed(startTime)}',
-          );
-          sink.close();
-        },
-      ),
-    );
+          StreamTransformer<List<int>, List<int>>.fromHandlers(
+            handleData: (data, sink) {
+              bytesSent += data.length;
+              _printProgress(bytesSent, totalBytes, startTime);
+              sink.add(data);
+            },
+            handleDone: (sink) {
+              // Clear progress line and print completion.
+              stdout.write('\r\x1B[K');
+              Logger.ok(
+                'Uploaded ${_bytesLabel(totalBytes)} in '
+                '${_elapsed(startTime)}',
+              );
+              sink.close();
+            },
+          ),
+        );
 
-    final request = http.StreamedRequest('POST', Uri.parse('https://upload.diawi.com/'))
-      ..headers['Content-Type'] =
-          'multipart/form-data; boundary=flutter_release_manager';
+    final request =
+        http.StreamedRequest('POST', Uri.parse('https://upload.diawi.com/'))
+          ..headers['Content-Type'] =
+              'multipart/form-data; boundary=flutter_release_manager';
 
     // Build multipart body manually with progress stream.
     final boundary = 'flutter_release_manager';
@@ -125,8 +125,7 @@ class DiawiUploader {
         'Content-Type: application/octet-stream\r\n\r\n';
     final closing = '\r\n--$boundary--\r\n';
 
-    request.headers['Content-Type'] =
-        'multipart/form-data; boundary=$boundary';
+    request.headers['Content-Type'] = 'multipart/form-data; boundary=$boundary';
 
     // Stream body: field + file (with progress) + closing.
     final controller = StreamController<List<int>>();
@@ -140,16 +139,14 @@ class DiawiUploader {
       await controller.close();
     }());
 
-    request.contentLength = fieldPart.length +
-        filePart.length +
-        totalBytes +
-        closing.length;
+    request.contentLength =
+        fieldPart.length + filePart.length + totalBytes + closing.length;
     controller.stream.listen(request.sink.add, onDone: request.sink.close);
 
     final streamed = await request.send().timeout(
           const Duration(minutes: 20),
-          onTimeout: () =>
-              throw TimeoutException('Diawi upload timed out after 20 minutes.'),
+          onTimeout: () => throw TimeoutException(
+              'Diawi upload timed out after 20 minutes.'),
         );
 
     final body = await streamed.stream.bytesToString();
@@ -167,8 +164,7 @@ class DiawiUploader {
     final pct = (sent / total * 100).clamp(0, 100).toStringAsFixed(1);
     final elapsed = DateTime.now().difference(start).inSeconds;
     final speed = elapsed > 0 ? sent / elapsed : 0;
-    final remaining =
-        speed > 0 ? ((total - sent) / speed).round() : 0;
+    final remaining = speed > 0 ? ((total - sent) / speed).round() : 0;
     final eta = remaining > 0 ? '  ETA ${_duration(remaining)}' : '';
 
     final bar = _progressBar(sent, total, width: 20);

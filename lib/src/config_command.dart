@@ -63,16 +63,16 @@ class ConfigCommand {
     final autoDiawi = cfg['autoUploadDiawi'];
     final driveConnected = RcloneManager.remoteExists();
 
-    final driveStatus =
-        driveConnected ? '\x1B[0;32mConnected\x1B[0m' : '\x1B[0;31mNot set up\x1B[0m';
+    final driveStatus = driveConnected
+        ? '\x1B[0;32mConnected\x1B[0m'
+        : '\x1B[0;31mNot set up\x1B[0m';
     final diawiStatus =
         hasDiawi ? '\x1B[0;32mConfigured\x1B[0m' : '\x1B[1;33mNot set\x1B[0m';
 
     stdout.writeln('');
     stdout.writeln('  ─── Current Configuration ──────────────────────────');
     stdout.writeln('');
-    _row('1', 'Project Directory',
-        projectDir ?? '\x1B[1;33mnot set\x1B[0m');
+    _row('1', 'Project Directory', projectDir ?? '\x1B[1;33mnot set\x1B[0m');
     _row('2', 'App Name', appName ?? '\x1B[1;33mnot set\x1B[0m');
     _row('3', 'Google Account', driveStatus);
     _row('4', 'Google Drive Root Folder',
@@ -135,7 +135,8 @@ class ConfigCommand {
         continue;
       }
       if (!File('$raw/pubspec.yaml').existsSync()) {
-        stdout.writeln('  No pubspec.yaml in: $raw — is this a Flutter project?');
+        stdout
+            .writeln('  No pubspec.yaml in: $raw — is this a Flutter project?');
         continue;
       }
 
@@ -358,7 +359,8 @@ class ConfigCommand {
   Future<void> _resetConfiguration() async {
     _section('Reset Configuration');
     stdout.writeln('  This clears all saved settings from this machine.');
-    stdout.writeln('  The rclone remote (Google Drive connection) is NOT deleted.');
+    stdout.writeln(
+        '  The rclone remote (Google Drive connection) is NOT deleted.');
     stdout.writeln('');
     stdout.write('  Type "yes" to confirm reset: ');
     final answer = stdin.readLineSync()?.trim().toLowerCase() ?? '';
@@ -367,7 +369,8 @@ class ConfigCommand {
       return;
     }
     AppConfig.resetAll();
-    Logger.ok('Configuration reset. Run flutter_release_manager init to reconfigure.');
+    Logger.ok(
+        'Configuration reset. Run flutter_release_manager init to reconfigure.');
   }
 
   // ── UI helpers ─────────────────────────────────────────────────────────────

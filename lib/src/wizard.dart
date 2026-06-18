@@ -109,9 +109,8 @@ class Wizard {
 
       // ── 6b. Environment (mandatory, never persisted) ───────────────────────
       final envArg = args['environment'] as String?;
-      environment = envArg != null
-          ? _normalizeEnv(envArg)
-          : await _pickEnvironment();
+      environment =
+          envArg != null ? _normalizeEnv(envArg) : await _pickEnvironment();
     }
 
     // ── 7. Advanced options ───────────────────────────────────────────────────
@@ -234,9 +233,7 @@ class Wizard {
 
     _infoRow(
       'Diawi',
-      hasDiawi
-          ? '\x1B[0;32mConfigured\x1B[0m'
-          : '\x1B[1;33mNot set\x1B[0m',
+      hasDiawi ? '\x1B[0;32mConfigured\x1B[0m' : '\x1B[1;33mNot set\x1B[0m',
     );
 
     stdout.writeln('');
@@ -354,7 +351,8 @@ class Wizard {
 
     final whichCmd = Platform.isWindows ? 'where' : 'which';
 
-    if (Process.runSync(whichCmd, ['flutter'], runInShell: true).exitCode != 0) {
+    if (Process.runSync(whichCmd, ['flutter'], runInShell: true).exitCode !=
+        0) {
       _printError(
         missing: 'flutter command',
         reason: 'flutter is required to build the app.',
@@ -682,7 +680,12 @@ class Wizard {
     final upper = raw.trim().toUpperCase();
     if (upper == 'DEV' || upper == 'UAT' || upper == 'PROD') return upper;
     // Accept numeric shorthand from CI callers
-    return switch (upper) { '1' => 'DEV', '2' => 'UAT', '3' => 'PROD', _ => upper };
+    return switch (upper) {
+      '1' => 'DEV',
+      '2' => 'UAT',
+      '3' => 'PROD',
+      _ => upper
+    };
   }
 
   // ── Summary ───────────────────────────────────────────────────────────────
@@ -869,7 +872,8 @@ ${parser.usage}
     ..addOption(
       'environment',
       abbr: 'e',
-      help: 'Upload environment: DEV | UAT | PROD (required when --upload-drive)',
+      help:
+          'Upload environment: DEV | UAT | PROD (required when --upload-drive)',
       allowed: ['DEV', 'UAT', 'PROD', 'dev', 'uat', 'prod'],
     )
     ..addOption(

@@ -33,28 +33,35 @@ Done. The APK is built, uploaded, and a shareable link is printed in your termin
 
 ## What It Does
 
-| Without this tool                      | With this tool                          |
-|----------------------------------------|-----------------------------------------|
-| Build manually, upload manually        | One command does everything             |
-| Remember folder structure yourself     | Automatically organized by year/month   |
-| Create links manually                  | Link generated and printed automatically|
-| Android and iOS are separate workflows | Both platforms in one command           |
-| Re-enter Drive folder every time       | Remembers your settings between runs    |
+| Without this tool | With this tool |
+|-------------------|----------------|
+| Build manually, upload manually | One command does everything |
+| Flat Drive folder — chaos after 10 builds | Organized: `AppName/2026/June/UAT/` |
+| Duplicate folders from typos or case mismatch | Smart folder reuse — case-insensitive |
+| Create shareable links manually | Link generated and printed automatically |
+| Android and iOS are separate workflows | Both platforms in one command |
+| Re-enter Drive folder every time | Remembers settings, asks only what changed |
+| No idea which build is DEV vs PROD | Environment (DEV/UAT/PROD) in every filename |
 
 ---
 
 ## Features
 
-- **Android APK** — builds with `--split-per-abi` (one APK per device type), uploads to Google Drive
-- **iOS IPA** — archives with Xcode, exports, uploads to Diawi for testers to install with one tap
-- **Google Drive upload** — automatic browser sign-in, no Google Cloud Console required
-- **Diawi upload** — iOS testers get a simple install link, no App Store needed
-- **Auto-installs rclone** — the upload tool is set up for you, you don't configure it
-- **Upload retry** — 3 automatic retries if the internet drops during upload
-- **Progress display** — watch the build and upload happen in real time
-- **Settings memory** — answers are saved, so the second run asks almost nothing
-- **CI/CD ready** — pass all settings as flags to skip every prompt
-- **Cross-platform** — works on macOS, Linux, and Windows
+| Feature | Description |
+|---------|-------------|
+| ✅ **Android APK Build** | `flutter build apk --split-per-abi` — arm64-v8a preferred |
+| ✅ **iOS IPA Build** | Xcode archive + export, fully automated |
+| ✅ **Google Drive Upload** | Browser sign-in via rclone — zero Cloud Console setup |
+| ✅ **Diawi Upload** | iOS testers get a one-tap install link |
+| ✅ **Rclone Authentication** | Non-interactive OAuth, no deadlocks, no interactive prompts |
+| ✅ **Real-time Upload Progress** | `[████░░░] 64%  42 MB / 66 MB  4.2 MB/s  ETA: 6s` |
+| ✅ **Environment Selection** | DEV / UAT / PROD per build — never remembered by mistake |
+| ✅ **Configuration Management** | `flutter_release_manager config` — edit all settings interactively |
+| ✅ **Smart Folder Reuse** | Case-insensitive Drive folder matching prevents duplicates |
+| ✅ **Structured Drive Hierarchy** | `root/AppName/year/month/ENV/APK` — scales to multiple apps |
+| ✅ **Team Distribution** | Shareable Drive link + Diawi install link printed after build |
+| ✅ **CI/CD Ready** | All settings overridable via flags — zero prompts in pipeline |
+| ✅ **Cross-Platform** | macOS, Linux, Windows |
 
 ---
 
@@ -494,6 +501,33 @@ flutter_release_manager
 
 ---
 
+### `flutter_release_manager config`
+
+| | |
+|--|--|
+| **Purpose** | Interactively edit all saved settings |
+| **When to run** | To change project directory, app name, Drive folder, Diawi token, or upload preferences |
+
+```bash
+flutter_release_manager config
+```
+
+**Menu:**
+```
+  ─── Current Configuration ──────────────────────────
+
+  1)  Project Directory          /Users/john/my_app
+  2)  App Name                   MyApp
+  3)  Google Account             Connected
+  4)  Google Drive Root Folder   QA Builds
+  5)  Diawi Token                Configured
+  6)  Upload Preferences         Drive: auto-upload, Diawi: skip
+  7)  Reset Configuration
+  8)  Exit
+```
+
+---
+
 ### `flutter_release_manager --platform android`
 
 | | |
@@ -551,6 +585,7 @@ flutter_release_manager --platform android --upload-only
 | `--app-dir` | `-d` | Path to Flutter project (where `pubspec.yaml` lives) | auto-detected |
 | `--app-name` | `-n` | Label used in APK/IPA file names | from `pubspec.yaml` |
 | `--upload-drive` | | Upload APK to Google Drive | prompted |
+| `--environment` | `-e` | `DEV`, `UAT`, or `PROD` — required when `--upload-drive` | prompted |
 | `--team-id` | `-t` | Apple Developer Team ID (iOS only) | prompted |
 | `--scheme` | | Xcode scheme name | `Runner` |
 | `--export-method` | | `development` \| `release-testing` \| `app-store` | `development` |
@@ -570,7 +605,8 @@ flutter_release_manager \
   --platform android \
   --app-dir /path/to/my_app \
   --app-name MyApp \
-  --upload-drive
+  --upload-drive \
+  --environment UAT
 ```
 
 For iOS:
@@ -655,15 +691,34 @@ flutter_release_manager \
 
 ## Google Drive Folder Structure
 
-APKs are organized automatically inside your chosen folder:
+APKs are organized automatically using the hierarchy:
 
 ```
-QA Builds/                        ← your chosen folder
-└── 2026/                         ← year (created automatically)
-    └── June/                     ← month (created automatically)
-        ├── MyApp_2026_06_18_1430.apk   ← build from Jun 18 at 14:30
-        ├── MyApp_2026_06_19_0920.apk   ← build from Jun 19 at 09:20
-        └── MyApp_2026_06_25_1715.apk   ← build from Jun 25 at 17:15
+testing releasing/             ← your root folder (chosen during init)
+├── Ruloans/                   ← app name (case-insensitive, reuses existing)
+│   └── 2026/
+│       └── June/
+│           ├── DEV/
+│           │   └── Ruloans_DEV_2026_06_18_1326.apk
+│           ├── UAT/
+│           │   └── Ruloans_UAT_2026_06_18_1430.apk
+│           └── PROD/
+│               └── Ruloans_PROD_2026_06_18_1715.apk
+├── RuConnect/                 ← separate app in the same root
+│   └── 2026/ ...
+└── PartnerApp/                ← another app
+    └── 2026/ ...
+```
+
+**Folder naming rules:**
+- Folders are matched **case-insensitively** — `Ruloans` reuses an existing `ruloans` folder
+- New folders are created automatically during the first upload
+- Existing folder names are preserved as-is to avoid duplicates
+
+**Filename format:**
+```
+AppName_ENV_YYYY_MM_DD_HHmm.apk
+Ruloans_UAT_2026_06_18_1326.apk
 ```
 
 The arm64-v8a APK is uploaded (covers all modern Android phones). A fallback to armeabi-v7a is used if arm64 is not available.
