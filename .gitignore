@@ -1,12 +1,18 @@
 # Compiled binary
 flutter_build_release
 
+# JIT snapshots — machine-specific, regenerated on first run
+*.snapshot
+
 # Dart tool cache
 .dart_tool/
 
 # IDE
 .idea/
 .vscode/
+
+# macOS metadata
+.DS_Store
 
 # Pub
 pubspec.lock

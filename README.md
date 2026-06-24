@@ -8,6 +8,44 @@
 
 ---
 
+## Quick Navigation
+
+- [🚀 Installation](#step-1--install-the-package)
+- [⚙️ One-Time Setup](#step-2--one-time-setup)
+- [📦 Build & Upload](#step-3--build-and-upload)
+- [🩺 Doctor Command](#flutter_release_manager-doctor)
+- [🔧 Configuration](#flutter_release_manager-config)
+- [🍎 iOS Distribution](#ios-distribution)
+- [🗂 Configuration Files](#configuration-files)
+- [☁️ Google Drive Structure](#google-drive-folder-structure)
+- [🛠 Troubleshooting](#troubleshooting)
+- [❓ FAQ](#faq)
+
+---
+
+## Quick Start
+
+```bash
+# 1. Install
+dart pub global activate flutter_release_manager
+
+# 2. One-time setup — installs rclone, signs into Google Drive
+flutter_release_manager init
+
+# 3. Build and upload from your Flutter project
+cd your_flutter_project
+flutter_release_manager
+```
+
+That's it. The tool builds your APK/IPA, uploads it to Google Drive, and prints a shareable link.
+
+> **CI/CD:** Pass all values as flags to skip every prompt:
+> ```bash
+> flutter_release_manager --platform android --upload-drive --environment UAT
+> ```
+
+---
+
 ## The Problem
 
 Every time you finish a feature or fix a bug, your QA team needs the latest build. Without a tool, you do this manually:

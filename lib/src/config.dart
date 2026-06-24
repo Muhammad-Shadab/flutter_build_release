@@ -11,6 +11,9 @@ class Config {
   final String? teamId;
   final String scheme;
   final String exportMethod;
+
+  /// ABI of the APK to upload to Google Drive: arm64-v8a | armeabi-v7a | x86_64
+  final String apkAbi;
   final String? diawiToken;
   final bool skipBuild;
 
@@ -25,6 +28,7 @@ class Config {
     this.teamId,
     required this.scheme,
     required this.exportMethod,
+    this.apkAbi = 'arm64-v8a',
     this.diawiToken,
     this.skipBuild = false,
   });

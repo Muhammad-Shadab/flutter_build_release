@@ -142,6 +142,7 @@ class RcloneManager {
         return;
       }
       Logger.skip('Token is invalid or expired — re-authorizing...');
+      Logger.step('Removing stale remote config...');
       _deleteRemoteConfig();
     }
 
@@ -282,7 +283,6 @@ class RcloneManager {
   }
 
   static void _deleteRemoteConfig() {
-    Logger.step('Removing stale remote config...');
     Process.runSync(
       'rclone',
       ['config', 'delete', remoteName],

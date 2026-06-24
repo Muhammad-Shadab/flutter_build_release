@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 
+import 'activation_guard.dart';
 import 'app_config.dart';
 import 'config.dart';
 import 'config_command.dart';
@@ -39,11 +40,15 @@ class Wizard {
 
     _printWelcome();
 
-    // ── Startup screen — show current state if configured ─────────────────────
+    // ── CI mode detection ─────────────────────────────────────────────────────
     final bool isCiMode = args.wasParsed('platform') ||
         args.wasParsed('app-dir') ||
         args.wasParsed('upload-drive');
 
+    // ── Activation detection — prompt user before any reset ───────────────────
+    await ActivationGuard.production().handle(isCiMode: isCiMode);
+
+    // ── Startup screen — show current state if configured ─────────────────────
     if (!isCiMode) await _showStartupScreen();
 
     // Show macOS security notice once before any subprocess is invoked.
@@ -95,20 +100,42 @@ class Wizard {
 
     if (uploadDrive) {
       RcloneManager.migrateOldRemoteIfNeeded();
+
       if (!RcloneManager.isInstalled()) {
-        uploadDrive = await _offerContinueWithoutDrive(
-          'rclone is not installed. It is required for Google Drive uploads.',
+        final doSetup = await _offerDriveSetup(
+          'rclone is not installed — it is required for Google Drive uploads.',
         );
+        if (doSetup) {
+          await RcloneManager.ensureInstalled();
+          await RcloneManager.ensureRemoteAndAuthenticated();
+          await RcloneManager.verifyRemote();
+          driveFolderName = await _pickDriveFolderInline();
+          AppConfig.saveFolderName(driveFolderName);
+        } else {
+          uploadDrive = false;
+        }
       } else if (!RcloneManager.remoteExists()) {
-        uploadDrive = await _offerContinueWithoutDrive(
-          'Google Drive has not been configured yet.',
+        final doSetup = await _offerDriveSetup(
+          'Google Drive is not signed in yet.',
         );
+        if (doSetup) {
+          await RcloneManager.ensureRemoteAndAuthenticated();
+          await RcloneManager.verifyRemote();
+          driveFolderName = await _pickDriveFolderInline();
+          AppConfig.saveFolderName(driveFolderName);
+        } else {
+          uploadDrive = false;
+        }
       } else {
         driveFolderName = AppConfig.folderName;
         if (driveFolderName == null) {
-          uploadDrive = await _offerContinueWithoutDrive(
-            'No Drive folder has been selected yet.',
-          );
+          final doSetup = await _offerDriveSetup('No Drive folder selected yet.');
+          if (doSetup) {
+            driveFolderName = await _pickDriveFolderInline();
+            AppConfig.saveFolderName(driveFolderName);
+          } else {
+            uploadDrive = false;
+          }
         }
       }
 
@@ -130,11 +157,21 @@ class Wizard {
     final String exportMethod;
     if (args.wasParsed('export-method')) {
       exportMethod = args['export-method'] as String;
-    } else if (buildIos && !isCiMode) {
-      exportMethod =
-          await _pickExportMethod(_saved['exportMethod'] as String?);
+    } else if (buildIos && !isCiMode && _saved['exportMethod'] == null) {
+      // Ask once — answer is saved to project config and reused on future runs.
+      // To change later: flutter_release_manager config → iOS Export Method.
+      exportMethod = await _pickExportMethod(null);
     } else {
       exportMethod = _saved['exportMethod'] as String? ?? 'development';
+    }
+
+    final String apkAbi;
+    if (buildAndroid && !isCiMode && _saved['apkAbi'] == null) {
+      // Ask once — answer is saved to project config and reused on future runs.
+      // To change later: flutter_release_manager config → Android APK Version.
+      apkAbi = await _pickApkAbi(null);
+    } else {
+      apkAbi = _saved['apkAbi'] as String? ?? 'arm64-v8a';
     }
 
     // ── 8. iOS / Diawi ────────────────────────────────────────────────────────
@@ -172,6 +209,7 @@ class Wizard {
       if (teamId != null) 'teamId': teamId,
       'scheme': scheme,
       'exportMethod': exportMethod,
+      'apkAbi': apkAbi,
     });
 
     // Also save appDir and appName at machine level for startup screen.
@@ -189,6 +227,7 @@ class Wizard {
       teamId: teamId,
       scheme: scheme,
       exportMethod: exportMethod,
+      apkAbi: apkAbi,
       diawiToken: diawiToken,
       skipBuild: skipBuild,
     );
@@ -208,6 +247,7 @@ class Wizard {
       teamId: teamId,
       scheme: scheme,
       exportMethod: exportMethod,
+      apkAbi: apkAbi,
       diawiToken: diawiToken,
       skipBuild: skipBuild,
     );
@@ -336,23 +376,64 @@ class Wizard {
 
   // ── Drive not configured — friendly fallback ──────────────────────────────
 
-  Future<bool> _offerContinueWithoutDrive(String reason) async {
-    stdout.writeln('');
-    stdout.writeln('  ─── Google Drive Not Configured ──────────────────────');
-    stdout.writeln('');
+  // ── Inline Drive setup ────────────────────────────────────────────────────
+
+  Future<bool> _offerDriveSetup(String reason) async {
+    _printSection('Google Drive Setup');
     stdout.writeln('  $reason');
     stdout.writeln('');
-    stdout.writeln('  Run:  flutter_release_manager init');
-    stdout.writeln('  (This setup is required only once.)');
-    stdout.writeln('');
-    stdout.write('  Continue without Drive upload? [Y/n]: ');
-    final answer = stdin.readLineSync()?.trim().toLowerCase() ?? 'y';
+    stdout.write('  Set up Google Drive now? [Y/n]: ');
+    final answer = stdin.readLineSync()?.trim().toLowerCase() ?? '';
     if (answer == 'n' || answer == 'no') {
-      stdout.writeln('  Build cancelled.');
-      exit(0);
+      Logger.ok('Skipping Drive upload — APK will stay local.');
+      return false;
     }
-    Logger.ok('Continuing with local build only.');
-    return false;
+    return true;
+  }
+
+  Future<String> _pickDriveFolderInline() async {
+    _printSection('Google Drive Folder');
+    stdout.writeln('  Fetching your top-level Drive folders...');
+    stdout.writeln('');
+
+    final folders = RcloneManager.listTopLevelFolders();
+
+    if (folders.isEmpty) {
+      stdout.writeln('  No folders found. Enter a name — it will be created on first upload.');
+      return _promptDriveFolderName();
+    }
+
+    for (var i = 0; i < folders.length; i++) {
+      stdout.writeln('  ${i + 1})  ${folders[i]}');
+    }
+    stdout.writeln('  ${folders.length + 1})  Enter folder name manually');
+    stdout.writeln('');
+
+    while (true) {
+      stdout.write('  Select folder [1-${folders.length + 1}]: ');
+      final raw = stdin.readLineSync()?.trim() ?? '';
+      final choice = int.tryParse(raw);
+      if (choice == null || choice < 1 || choice > folders.length + 1) {
+        stdout.writeln('  Enter a number between 1 and ${folders.length + 1}.');
+        continue;
+      }
+      if (choice == folders.length + 1) return _promptDriveFolderName();
+      final selected = folders[choice - 1];
+      Logger.ok('Drive folder: $selected');
+      return selected;
+    }
+  }
+
+  String _promptDriveFolderName() {
+    while (true) {
+      stdout.write('  Folder name: ');
+      final name = stdin.readLineSync()?.trim() ?? '';
+      if (name.isNotEmpty) {
+        Logger.ok('Drive folder: $name');
+        return name;
+      }
+      stdout.writeln('  Folder name cannot be empty.');
+    }
   }
 
   // ── Pre-flight validation ─────────────────────────────────────────────────
@@ -684,13 +765,44 @@ class Wizard {
         '  1) development     — device must be registered in Apple Developer portal');
     stdout.writeln(
         '  2) release-testing — Ad Hoc (requires Ad Hoc provisioning profiles)');
+    stdout.writeln('');
+
+    final defaultIdx = saved == 'release-testing' ? '2' : '1';
+
+    while (true) {
+      stdout.write('  Enter choice [1/2] (default: $defaultIdx): ');
+      final raw = stdin.readLineSync()?.trim() ?? '';
+      final choice = raw.isEmpty ? defaultIdx : raw;
+      switch (choice) {
+        case '1':
+          return 'development';
+        case '2':
+          return 'release-testing';
+        default:
+          stdout.writeln('  Please enter 1 or 2.');
+      }
+    }
+  }
+
+  // ── APK ABI picker ────────────────────────────────────────────────────────
+
+  Future<String> _pickApkAbi(String? saved) async {
+    _printSection('Android APK Version');
+    stdout.writeln('');
+    stdout.writeln('  Flutter builds three APK variants with --split-per-abi.');
+    stdout.writeln('  Which one should be uploaded to Google Drive?');
+    stdout.writeln('');
     stdout.writeln(
-        '  3) app-store       — App Store / TestFlight submission');
+        '  1) arm64-v8a   — 64-bit ARM  (recommended — covers most modern phones)');
+    stdout.writeln(
+        '  2) armeabi-v7a — 32-bit ARM  (for older Android devices)');
+    stdout.writeln(
+        '  3) x86_64      — 64-bit x86  (for emulators)');
     stdout.writeln('');
 
     final defaultIdx = switch (saved) {
-      'release-testing' => '2',
-      'app-store' => '3',
+      'armeabi-v7a' => '2',
+      'x86_64' => '3',
       _ => '1',
     };
 
@@ -700,11 +812,11 @@ class Wizard {
       final choice = raw.isEmpty ? defaultIdx : raw;
       switch (choice) {
         case '1':
-          return 'development';
+          return 'arm64-v8a';
         case '2':
-          return 'release-testing';
+          return 'armeabi-v7a';
         case '3':
-          return 'app-store';
+          return 'x86_64';
         default:
           stdout.writeln('  Please enter 1, 2, or 3.');
       }
@@ -735,6 +847,7 @@ class Wizard {
     required String? teamId,
     required String scheme,
     required String exportMethod,
+    required String apkAbi,
     required String? diawiToken,
     required bool skipBuild,
   }) {
@@ -761,6 +874,7 @@ class Wizard {
     if (platform == 'android' || platform == 'both') {
       stdout.writeln('');
       stdout.writeln('  Android');
+      _summaryRow('  APK Version', apkAbi);
       _summaryRow(
         '  Drive Upload',
         uploadDrive ? 'Enabled' : 'Disabled — APK stays local',
@@ -873,7 +987,9 @@ Commands:
   flutter_release_manager init     First-time setup: install rclone, sign into Google Drive
   flutter_release_manager doctor   Check all prerequisites
   flutter_release_manager config   Edit saved configuration
-  flutter_release_manager version  Show version information
+  flutter_release_manager reset          Clear machine and project configuration
+  flutter_release_manager reset --all   Full reset including Google Drive connection
+  flutter_release_manager version        Show version information
 
 Flags (useful for CI/scripts):
   flutter_release_manager --platform <android|ios|both> --app-dir <path> --app-name <name> [options]

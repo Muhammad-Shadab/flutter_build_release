@@ -267,20 +267,21 @@ class RcloneUploader {
   ///   Transferred: 42.1 MiB / 65.4 MiB, 64%, 4.2 MiB/s, ETA 6s
   void _renderProgress(String chunk, int fileSize) {
     final match = RegExp(
-      r'Transferred:\s+([\d.]+)\s*(\w+)\s*/\s*([\d.]+)\s*(\w+),\s*(\d+)%'
+      r'Transferred:\s+[\d.]+\s*\w+\s*/\s*[\d.]+\s*\w+,\s*(\d+)%'
       r',\s*([\d.]+)\s*([\w/]+),\s*ETA\s*(\S+)',
     ).firstMatch(chunk);
 
     if (match == null) return;
 
-    final pct = int.tryParse(match.group(5)!) ?? 0;
-    final doneVal = double.tryParse(match.group(1)!) ?? 0;
-    final doneUnit = _si(match.group(2)!);
-    final totalVal = double.tryParse(match.group(3)!) ?? 0;
-    final totalUnit = _si(match.group(4)!);
-    final speedVal = double.tryParse(match.group(6)!) ?? 0;
-    final speedUnit = _si(match.group(7)!);
-    final eta = match.group(8)!;
+    final pct = int.tryParse(match.group(1)!) ?? 0;
+    final speedVal = double.tryParse(match.group(2)!) ?? 0;
+    final speedUnit = _si(match.group(3)!);
+    final eta = match.group(4)!;
+
+    // Use the known local file size for done/total so the display is accurate
+    // regardless of rclone's internal retry byte accumulation.
+    final totalMb = fileSize / (1024 * 1024);
+    final doneMb = totalMb * pct / 100;
 
     const barWidth = 20;
     final filled = (pct / 100 * barWidth).round().clamp(0, barWidth);
@@ -289,8 +290,8 @@ class RcloneUploader {
     stdout.write(
       '\r\x1B[K'
       '  [$bar] $pct%  '
-      '${doneVal.toStringAsFixed(1)} $doneUnit'
-      ' / ${totalVal.toStringAsFixed(1)} $totalUnit  '
+      '${doneMb.toStringAsFixed(1)} MB'
+      ' / ${totalMb.toStringAsFixed(1)} MB  '
       '${speedVal.toStringAsFixed(1)} $speedUnit  '
       'ETA: $eta',
     );

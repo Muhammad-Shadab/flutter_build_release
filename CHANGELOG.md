@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.13
+
+### Fixed
+
+- **Startup pub logs suppressed** — after `dart pub global activate`, the tool no longer prints `FINE:`, `SLVR:`, `IO:`, `MSG:`, or dependency resolution output. Root cause: the stale-snapshot fallback path in the pub launcher (`dart pub -v global run`) hardcodes the `-v` verbose flag. Fix: replaced `exit(253)` with a direct JIT snapshot recompile via `dart --snapshot=bin/<name>.snapshot --snapshot-kind=app-jit`, which runs the program normally while saving a fresh snapshot for future runs — bypassing pub entirely.
+- **Activation prompt now appears for existing-config users** — users who had the tool configured before activation-time tracking was introduced never saw the "New Package Activation Detected" prompt. Root cause: the staleness check required `savedMtime != null`, which was false for any config saved before the `activationTime` key was added. Fixed by removing that condition.
+- **Upload progress display accuracy** — rclone's reported byte counters can accumulate across retries, causing the displayed "done / total" to exceed 100 %. Progress bar now derives done/total from the known local file size and the reported percentage, so the display is always accurate.
+
+### Added
+
+- **Config menu: iOS Export Method (option 7)** — `flutter_release_manager config` now shows and lets you edit the saved iOS export method (`development` / `release-testing` / `app-store`) per project.
+- **Config menu: Android APK Version (option 8)** — choose which ABI to upload to Google Drive (`arm64-v8a` / `armeabi-v7a` / `x86_64`); default remains `arm64-v8a`.
+- **Inline Drive setup during build flow** — when Google Drive is not configured and the user chooses to upload, the tool now walks through rclone install + Google sign-in + folder selection inline, without requiring a separate `init` run.
+- **Test suite** — 13 automated tests covering `ActivationGuard` (first run, normal run, new activation keep/reset, CI mode, regression for the `savedMtime` bug) and `ResetCommand` (soft reset, full reset, cancel, edge cases).
+
+### Changed
+
+- **README** — added **Quick Navigation** jump table and **Quick Start** 3-step snippet near the top.
+- **`.gitignore`** — added `*.snapshot` (JIT snapshots are machine-specific and regenerated on first run) and `.DS_Store`.
+
+---
+
 ## 1.0.12
 
 ### Added

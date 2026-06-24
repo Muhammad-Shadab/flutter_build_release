@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'app_config.dart';
+import 'config_store.dart';
 import 'logger.dart';
 import 'rclone_manager.dart';
 
@@ -29,15 +30,19 @@ class ConfigCommand {
         case '6':
           await _editUploadPreferences();
         case '7':
-          await _resetConfiguration();
+          await _editExportMethod();
         case '8':
+          await _editApkAbi();
+        case '9':
+          await _resetConfiguration();
+        case '10':
         case 'q':
         case 'Q':
           stdout.writeln('  Exiting configuration.');
           stdout.writeln('');
           return;
         default:
-          stdout.writeln('  Enter a number from 1–8.');
+          stdout.writeln('  Enter a number from 1–10.');
       }
     }
   }
@@ -87,10 +92,12 @@ class ConfigCommand {
         folderName ?? '\x1B[1;33mnot set\x1B[0m');
     _row('5', 'Diawi Token', diawiStatus);
     _row('6', 'Upload Preferences', _uploadPrefLabel(autoDrive, autoDiawi));
-    stdout.writeln('  7)  Reset Configuration');
-    stdout.writeln('  8)  Exit');
+    _row('7', 'iOS Export Method', _exportMethodLabel());
+    _row('8', 'Android APK Version', _apkAbiLabel());
+    stdout.writeln('  9)  Reset Configuration');
+    stdout.writeln('  10) Exit');
     stdout.writeln('');
-    stdout.write('  Enter choice [1–8]: ');
+    stdout.write('  Enter choice [1–10]: ');
   }
 
   void _row(String num, String label, String value) {
@@ -411,7 +418,130 @@ class ConfigCommand {
     }
   }
 
-  // ── 7. Reset ───────────────────────────────────────────────────────────────
+  // ── 7. iOS export method ───────────────────────────────────────────────────
+
+  String _exportMethodLabel() {
+    final dir = AppConfig.projectDirectory;
+    if (dir == null) return '\x1B[1;33mnot set\x1B[0m';
+    final saved = ConfigStore(dir).load()['exportMethod'] as String?;
+    return saved ?? '\x1B[1;33mnot set\x1B[0m';
+  }
+
+  Future<void> _editExportMethod() async {
+    _section('iOS Export Method');
+
+    final dir = AppConfig.projectDirectory;
+    if (dir == null) {
+      stdout.writeln(
+          '  No project directory set. Configure it first (option 1).');
+      return;
+    }
+
+    final store = ConfigStore(dir);
+    final saved = store.load();
+    final current = saved['exportMethod'] as String?;
+
+    stdout.writeln('  How should the IPA be signed?');
+    stdout.writeln('');
+    stdout.writeln(
+        '  1) development     — device must be registered in Apple Developer portal');
+    stdout.writeln(
+        '  2) release-testing — Ad Hoc (requires Ad Hoc provisioning profiles)');
+    stdout.writeln('');
+
+    final defaultIdx = current == 'release-testing' ? '2' : '1';
+    if (current != null) {
+      stdout.writeln('  Current: $current');
+    }
+
+    while (true) {
+      stdout.write('  Enter choice [1/2] (default: $defaultIdx): ');
+      final raw = stdin.readLineSync()?.trim() ?? '';
+      final choice = raw.isEmpty ? defaultIdx : raw;
+      final String method;
+      switch (choice) {
+        case '1':
+          method = 'development';
+        case '2':
+          method = 'release-testing';
+        default:
+          stdout.writeln('  Please enter 1 or 2.');
+          continue;
+      }
+      saved['exportMethod'] = method;
+      store.save(saved);
+      Logger.ok('iOS export method set to: $method');
+      return;
+    }
+  }
+
+  // ── 8. Android APK version ────────────────────────────────────────────────
+
+  String _apkAbiLabel() {
+    final dir = AppConfig.projectDirectory;
+    if (dir == null) return '\x1B[1;33mnot set\x1B[0m';
+    final saved = ConfigStore(dir).load()['apkAbi'] as String?;
+    return saved ?? '\x1B[1;33mnot set\x1B[0m';
+  }
+
+  Future<void> _editApkAbi() async {
+    _section('Android APK Version');
+
+    final dir = AppConfig.projectDirectory;
+    if (dir == null) {
+      stdout.writeln(
+          '  No project directory set. Configure it first (option 1).');
+      return;
+    }
+
+    final store = ConfigStore(dir);
+    final saved = store.load();
+    final current = saved['apkAbi'] as String?;
+
+    stdout.writeln(
+        '  Flutter builds three APK variants. Which one should be uploaded?');
+    stdout.writeln('');
+    stdout.writeln(
+        '  1) arm64-v8a   — 64-bit ARM  (recommended — covers most modern phones)');
+    stdout.writeln(
+        '  2) armeabi-v7a — 32-bit ARM  (for older Android devices)');
+    stdout.writeln(
+        '  3) x86_64      — 64-bit x86  (for emulators)');
+    stdout.writeln('');
+
+    final defaultIdx = switch (current) {
+      'armeabi-v7a' => '2',
+      'x86_64' => '3',
+      _ => '1',
+    };
+    if (current != null) {
+      stdout.writeln('  Current: $current');
+    }
+
+    while (true) {
+      stdout.write('  Enter choice [1/2/3] (default: $defaultIdx): ');
+      final raw = stdin.readLineSync()?.trim() ?? '';
+      final choice = raw.isEmpty ? defaultIdx : raw;
+      final String abi;
+      switch (choice) {
+        case '1':
+          abi = 'arm64-v8a';
+        case '2':
+          abi = 'armeabi-v7a';
+        case '3':
+          abi = 'x86_64';
+        default:
+          stdout.writeln('  Please enter 1, 2, or 3.');
+          continue;
+      }
+      saved['apkAbi'] = abi;
+      store.save(saved);
+      Logger.ok('Android APK version set to: $abi');
+      return;
+    }
+  }
+
+  // ── 9. Reset ───────────────────────────────────────────────────────────────
 
   Future<void> _resetConfiguration() async {
     _section('Reset Configuration');

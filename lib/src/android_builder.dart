@@ -87,17 +87,29 @@ class AndroidBuilder {
   // ── APK selection ─────────────────────────────────────────────────────────
 
   File _findApk(String dir) {
-    final apk = _findApkOrNull(dir);
-    if (apk != null) return apk;
-    return File('$dir/app-armeabi-v7a-release.apk');
-  }
-
-  File? _findApkOrNull(String dir) {
+    final preferred = File('$dir/app-${config.apkAbi}-release.apk');
+    if (preferred.existsSync()) return preferred;
+    // Fallback: try arm64-v8a then armeabi-v7a if the preferred ABI is missing.
     for (final abi in ['arm64-v8a', 'armeabi-v7a']) {
       final f = File('$dir/app-$abi-release.apk');
       if (f.existsSync()) {
-        if (abi != 'arm64-v8a') {
-          Logger.skip('arm64-v8a APK not found — uploading $abi instead.');
+        Logger.skip(
+            '${config.apkAbi} APK not found — uploading $abi instead.');
+        return f;
+      }
+    }
+    return preferred; // let the uploader surface the missing-file error
+  }
+
+  File? _findApkOrNull(String dir) {
+    final preferred = File('$dir/app-${config.apkAbi}-release.apk');
+    if (preferred.existsSync()) return preferred;
+    for (final abi in ['arm64-v8a', 'armeabi-v7a']) {
+      final f = File('$dir/app-$abi-release.apk');
+      if (f.existsSync()) {
+        if (abi != config.apkAbi) {
+          Logger.skip(
+              '${config.apkAbi} APK not found — uploading $abi instead.');
         }
         return f;
       }

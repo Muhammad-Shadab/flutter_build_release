@@ -7,9 +7,10 @@ lib/src/drive_uploader.dart
 lib/src/credential_store.dart
 lib/src/drive_authenticator.dart
 
-# Compiled binaries — never publish
+# Compiled binaries and JIT snapshots — never publish
 flutter_build_release
 flutter_release_manager
+*.snapshot
 
 # Dev artifacts
 .DS_Store
