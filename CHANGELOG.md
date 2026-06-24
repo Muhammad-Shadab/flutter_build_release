@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.11
+
+### Fixed
+
+- **iOS export method reverted to `development`** — `ad-hoc` (now `release-testing`) requires explicit Ad Hoc provisioning profiles in the Apple Developer portal. Most projects only have Development and App Store profiles, so the default is back to `development`. Use `--export-method release-testing` only if you have Ad Hoc profiles set up.
+- **`ad-hoc` removed from allowed values** — `xcodebuild` deprecated the `ad-hoc` name in Xcode 15; the correct replacement is `release-testing`. The allowed list is now `development | release-testing | app-store`.
+
+---
+
 ## 1.0.10
 
 ### Changed

@@ -596,7 +596,7 @@ flutter_release_manager --platform android --upload-only
 | `--environment` | `-e` | `DEV`, `UAT`, or `PROD` — required when `--upload-drive` | prompted |
 | `--team-id` | `-t` | Apple Developer Team ID (iOS only) | prompted |
 | `--scheme` | | Xcode scheme name | `Runner` |
-| `--export-method` | | `ad-hoc` \| `development` \| `app-store` | `ad-hoc` |
+| `--export-method` | | `development` \| `release-testing` \| `app-store` | `development` |
 | `--diawi-token` | | Diawi API token for IPA upload | from config |
 | `--skip-build` | | Upload last artifact, skip the build step | `false` |
 | `--upload-only` | | Alias for `--skip-build` | `false` |
@@ -626,7 +626,7 @@ flutter_release_manager \
   --app-name MyApp \
   --team-id ABCD1234EF \
   --diawi-token YOUR_TOKEN \
-  --export-method ad-hoc
+  --export-method development
 ```
 
 Both platforms:
@@ -702,7 +702,7 @@ flutter_release_manager \
   "platform": "android",
   "appName": "MyApp",
   "scheme": "Runner",
-  "exportMethod": "ad-hoc"
+  "exportMethod": "development"
 }
 ```
 
@@ -762,11 +762,11 @@ The arm64-v8a APK is uploaded (covers all modern Android phones). A fallback to 
 
 | Value | Use case | When to use |
 |-------|----------|-------------|
-| `ad-hoc` | Ad Hoc distribution — any registered device | **Default. Use this for Diawi and tester distribution.** |
-| `development` | Development builds — device must be in your dev provisioning profile | Local debugging only |
+| `development` | Development distribution — device must be registered in Apple Developer portal | **Default. Works for Diawi if the device is a registered development device.** |
+| `release-testing` | Ad Hoc distribution — requires explicit Ad Hoc provisioning profiles in Apple portal for every bundle ID | When you have Ad Hoc profiles set up for all targets |
 | `app-store` | App Store / TestFlight submission | Final release builds |
 
-Use `ad-hoc` for Diawi. IPAs built with `development` can only be installed on devices explicitly registered in your development provisioning profile — they will download but fail to install on other devices.
+> **Note:** `ad-hoc` is a deprecated alias for `release-testing` in Xcode 15+. Use `release-testing` if you need Ad Hoc distribution. `release-testing` requires separate Ad Hoc provisioning profiles to be created in the Apple Developer portal for every bundle ID in your app (including Notification Service Extensions etc.).
 
 ---
 

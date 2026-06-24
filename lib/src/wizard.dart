@@ -128,7 +128,7 @@ class Wizard {
         : (_saved['scheme'] as String? ?? 'Runner');
     final exportMethod = args.wasParsed('export-method')
         ? args['export-method'] as String
-        : (_saved['exportMethod'] as String? ?? 'ad-hoc');
+        : (_saved['exportMethod'] as String? ?? 'development');
 
     // ── 8. iOS / Diawi ────────────────────────────────────────────────────────
     String? teamId = args['team-id'] as String?;
@@ -876,9 +876,9 @@ ${parser.usage}
     ..addOption('scheme', help: 'Xcode scheme name.', defaultsTo: 'Runner')
     ..addOption(
       'export-method',
-      help: 'ad-hoc | development | app-store',
-      allowed: ['ad-hoc', 'development', 'app-store'],
-      defaultsTo: 'ad-hoc',
+      help: 'development | release-testing | app-store',
+      allowed: ['development', 'release-testing', 'app-store'],
+      defaultsTo: 'development',
     )
     ..addOption('diawi-token', help: 'Diawi API token for IPA upload.')
     ..addFlag(
