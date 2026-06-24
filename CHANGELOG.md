@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.10
+
+### Changed
+
+- **README — setup steps table** — added a quick-reference table summarising all 5 `init` wizard steps with expected time.
+- **README — troubleshooting quick-reference table** — scannable table of every known problem and its fix, placed at the top of the Troubleshooting section.
+- **README — configuration comparison table** — side-by-side table comparing machine config vs project config (location, contents, secrets, gitignore).
+- **README — export methods table** — updated to show `ad-hoc` as the correct default with a clear explanation of why `development` IPAs fail to install.
+- **README — stale references fixed** — updated all `--export-method development` examples and the project config JSON example to use `ad-hoc`.
+
+---
+
 ## 1.0.9
 
 ### Fixed

@@ -140,6 +140,14 @@ flutter_release_manager init
 
 The setup wizard walks you through 5 steps. Here is exactly what happens at each step:
 
+| Step | Name | What happens | Time |
+|------|------|-------------|------|
+| 1 | **rclone Installation** | Checks if rclone is installed. Installs automatically via Homebrew/apt if not. | ~1 min |
+| 2 | **Google Drive Sign-in** | Opens your browser for a standard Google sign-in. One-time only. | ~1 min |
+| 3 | **Connection Verification** | Confirms Google Drive is reachable and shows your quota. | Instant |
+| 4 | **Choose Drive Folder** | Lists your top-level Drive folders. Pick one or enter a name. | Instant |
+| 5 | **Diawi Token** | Optional. Paste your token for iOS tester distribution. Skip if Android only. | Instant |
+
 ---
 
 ### Step 2.1 — rclone Installation
@@ -588,7 +596,7 @@ flutter_release_manager --platform android --upload-only
 | `--environment` | `-e` | `DEV`, `UAT`, or `PROD` — required when `--upload-drive` | prompted |
 | `--team-id` | `-t` | Apple Developer Team ID (iOS only) | prompted |
 | `--scheme` | | Xcode scheme name | `Runner` |
-| `--export-method` | | `development` \| `release-testing` \| `app-store` | `development` |
+| `--export-method` | | `ad-hoc` \| `development` \| `app-store` | `ad-hoc` |
 | `--diawi-token` | | Diawi API token for IPA upload | from config |
 | `--skip-build` | | Upload last artifact, skip the build step | `false` |
 | `--upload-only` | | Alias for `--skip-build` | `false` |
@@ -618,7 +626,7 @@ flutter_release_manager \
   --app-name MyApp \
   --team-id ABCD1234EF \
   --diawi-token YOUR_TOKEN \
-  --export-method development
+  --export-method ad-hoc
 ```
 
 Both platforms:
@@ -636,6 +644,17 @@ flutter_release_manager \
 ---
 
 ## Configuration Files
+
+| | Machine config | Project config |
+|--|---|---|
+| **Location** | `~/.config/flutter_release_manager/config.json` | `<app>/.flutter_release_manager_config.json` |
+| **Stores** | Drive folder, Diawi token, rclone remote | App name, Team ID, scheme, export method |
+| **Set by** | `flutter_release_manager init` | Auto-saved after each build |
+| **Contains secrets?** | Yes (Diawi token) | No |
+| **In `.gitignore`?** | N/A (outside project) | Yes — added automatically |
+| **Shared between projects?** | Yes — one per machine | No — one per Flutter project |
+
+---
 
 ### Machine Configuration
 
@@ -683,7 +702,7 @@ flutter_release_manager \
   "platform": "android",
   "appName": "MyApp",
   "scheme": "Runner",
-  "exportMethod": "development"
+  "exportMethod": "ad-hoc"
 }
 ```
 
@@ -741,17 +760,34 @@ The arm64-v8a APK is uploaded (covers all modern Android phones). A fallback to 
 
 ### Export Methods
 
-| Value | Use case |
-|-------|----------|
-| `development` | Testing on registered devices. Xcode manages provisioning profiles automatically. Works with Diawi. |
-| `release-testing` | Ad Hoc distribution. For sharing with up to 100 specific devices. |
-| `app-store` | Final build for App Store submission. |
+| Value | Use case | When to use |
+|-------|----------|-------------|
+| `ad-hoc` | Ad Hoc distribution — any registered device | **Default. Use this for Diawi and tester distribution.** |
+| `development` | Development builds — device must be in your dev provisioning profile | Local debugging only |
+| `app-store` | App Store / TestFlight submission | Final release builds |
 
-Use `development` unless you know you need something else.
+Use `ad-hoc` for Diawi. IPAs built with `development` can only be installed on devices explicitly registered in your development provisioning profile — they will download but fail to install on other devices.
 
 ---
 
 ## Troubleshooting
+
+| Problem | Quick fix |
+|---------|-----------|
+| `flutter: command not found` | Install Flutter and add its `bin` dir to PATH |
+| macOS security popup (Gatekeeper) | System Settings → Privacy & Security → Allow Anyway |
+| `rclone not found` after `init` | Install Homebrew (macOS) then re-run `flutter_release_manager init` |
+| `Google Drive authentication failed` | Re-run `flutter_release_manager init` and complete sign-in within 5 minutes |
+| `Remote "flutter_release_manager" not found` | Run `flutter_release_manager init` |
+| Drive folder not in list during `init` | Choose "Enter folder name manually" — it will be created on first upload |
+| `Diawi upload failed` | Regenerate token at diawi.com → Account → API Access Tokens |
+| `Archive failed` / `Export failed` (iOS) | Verify Team ID is 10 chars, run `xcode-select --install`, try archiving in Xcode |
+| IPA downloads but won't install | Make sure `--export-method` is `ad-hoc`, not `development` |
+| `flutter build apk` fails | Run `flutter build apk --split-per-abi` directly to see the error |
+| Upload fails despite green doctor | Re-run `flutter_release_manager init` to refresh the Drive token |
+| `command not found: flutter_release_manager` | Add `$HOME/.pub-cache/bin` to your PATH |
+
+---
 
 ### `flutter: command not found`
 
